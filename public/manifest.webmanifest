@@ -1,0 +1,10 @@
+{
+  "name": "Goals Tracker",
+  "short_name": "Goals",
+  "description": "Plan tomorrow around goals, tasks, events, and daily review.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "icons": []
+}
