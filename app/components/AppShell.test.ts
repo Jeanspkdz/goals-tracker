@@ -652,6 +652,32 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Daily Review completed.");
     expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Completed");
   });
+
+  it("requires an Incomplete Reason and records an optional note", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Incomplete");
+    await clickButton(wrapper, "Daily Capacity Low");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Incomplete Reason is required.");
+
+    await wrapper
+      .get("select[aria-label='Incomplete Reason for Draft the schedule suggestion flow']")
+      .setValue("Interrupted");
+    await wrapper
+      .get("textarea[aria-label='Incomplete note for Draft the schedule suggestion flow']")
+      .setValue("A real-world interruption displaced the block.");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Incomplete");
+    expect(wrapper.text()).toContain("Incomplete Reason: Interrupted");
+    expect(wrapper.text()).toContain("A real-world interruption displaced the block.");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

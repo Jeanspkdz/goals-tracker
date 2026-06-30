@@ -25,6 +25,12 @@ type TaskEffort = "Light" | "Focus";
 type TaskStatus = "Planned" | "Completed" | "Deferred" | "Skipped" | "Blocked";
 type ReviewCompletionStatus = "Planned" | "Completed" | "Incomplete";
 type DailyCapacity = "Low" | "Normal" | "High";
+type IncompleteReason =
+  | "Too Large"
+  | "Interrupted"
+  | "Not Enough Energy"
+  | "Blocked"
+  | "Not Important Anymore";
 
 type Task = {
   id: number;
@@ -270,6 +276,8 @@ const scheduleSuggestionStatus = ref("");
 const regenerationReason = ref("");
 const acceptedDailyPlan = ref<DailyPlan | null>(null);
 const dailyReviewStatuses = ref<Record<string, ReviewCompletionStatus>>({});
+const incompleteReasons = ref<Record<string, IncompleteReason | "">>({});
+const incompleteNotes = ref<Record<string, string>>({});
 const dailyCapacity = ref<DailyCapacity | "">("");
 const dailyReviewError = ref("");
 const dailyReviewCompleted = ref(false);
@@ -297,6 +305,13 @@ const taskStatuses: TaskStatus[] = [
   "Deferred",
   "Skipped",
   "Blocked"
+];
+const incompleteReasonOptions: IncompleteReason[] = [
+  "Too Large",
+  "Interrupted",
+  "Not Enough Energy",
+  "Blocked",
+  "Not Important Anymore"
 ];
 const todayDate = new Date().toISOString().slice(0, 10);
 const tomorrowDate = getTomorrowDate();
@@ -531,8 +546,27 @@ function completeDailyReview() {
     return;
   }
 
+  const incompleteTaskWithoutReason = acceptedDailyPlan.value?.tasks.find(
+    (task) =>
+      reviewStatusFor(task) === "Incomplete" && !incompleteReasons.value[task.title]
+  );
+
+  if (incompleteTaskWithoutReason) {
+    dailyReviewError.value = "Incomplete Reason is required.";
+    return;
+  }
+
   dailyReviewCompleted.value = true;
   dailyReviewError.value = "";
+}
+
+function incompleteReasonFor(task: ScheduleSuggestionTask) {
+  incompleteReasons.value[task.title] ??= "";
+  return incompleteReasons.value[task.title];
+}
+
+function setIncompleteReason(task: ScheduleSuggestionTask, reason: IncompleteReason) {
+  incompleteReasons.value[task.title] = reason;
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -1469,6 +1503,36 @@ function taskPlanningLabel(task: Task) {
                   <option>Incomplete</option>
                 </select>
               </label>
+              <div v-if="reviewStatusFor(task) === 'Incomplete'">
+                <label>
+                  Incomplete Reason for {{ task.title }}
+                  <select
+                    :aria-label="`Incomplete Reason for ${task.title}`"
+                    :value="incompleteReasonFor(task)"
+                    @change="
+                      setIncompleteReason(
+                        task,
+                        ($event.target as HTMLSelectElement).value as IncompleteReason
+                      )
+                    "
+                  >
+                    <option value="">Choose reason</option>
+                    <option
+                      v-for="reason in incompleteReasonOptions"
+                      :key="reason"
+                    >
+                      {{ reason }}
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Incomplete note for {{ task.title }}
+                  <textarea
+                    v-model="incompleteNotes[task.title]"
+                    :aria-label="`Incomplete note for ${task.title}`"
+                  />
+                </label>
+              </div>
             </li>
           </ul>
 
@@ -1507,6 +1571,12 @@ function taskPlanningLabel(task: Task) {
               class="planning-state"
             >
               {{ task.title }}: {{ reviewStatusFor(task) }}
+              <span v-if="incompleteReasons[task.title]">
+                · Incomplete Reason: {{ incompleteReasons[task.title] }}
+              </span>
+              <span v-if="incompleteNotes[task.title]">
+                · {{ incompleteNotes[task.title] }}
+              </span>
             </p>
           </section>
         </section>
