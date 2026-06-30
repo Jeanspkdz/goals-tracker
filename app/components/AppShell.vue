@@ -82,6 +82,7 @@ type ScheduledTaskDraft = {
 type ProviderDraft = {
   providerName: string;
   credential: string;
+  fakeMode: "success" | "failure";
 };
 
 type ActiveProvider = {
@@ -203,7 +204,8 @@ const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
 const providerDraft = ref<ProviderDraft>({
   providerName: "",
-  credential: ""
+  credential: "",
+  fakeMode: "success"
 });
 const activeProvider = ref<ActiveProvider | null>(null);
 const providerConnectionError = ref("");
@@ -260,7 +262,7 @@ async function runProviderConnectionTest() {
     return;
   }
 
-  const adapter = createFakeAiProviderAdapter({ mode: "success" });
+  const adapter = createFakeAiProviderAdapter({ mode: providerDraft.value.fakeMode });
   const result: ProviderConnectionResult = await adapter.testConnection({
     providerName,
     secret: credential
@@ -725,6 +727,17 @@ function taskPlanningLabel(task: Task) {
             type="password"
           />
 
+          <label>
+            Fake Provider test mode
+            <select
+              v-model="providerDraft.fakeMode"
+              aria-label="Fake Provider test mode"
+            >
+              <option>success</option>
+              <option>failure</option>
+            </select>
+          </label>
+
           <button type="button" @click="runProviderConnectionTest">
             Run Provider Connection Test
           </button>
@@ -732,6 +745,10 @@ function taskPlanningLabel(task: Task) {
             {{ providerConnectionError }}
           </p>
         </section>
+
+        <p v-if="!activeProvider" class="planning-state">
+          Manual Mode
+        </p>
 
         <section
           v-if="activeProvider"

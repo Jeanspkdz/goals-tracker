@@ -82,6 +82,39 @@ describe("Goals Tracker app shell", () => {
     ).toBe("");
   });
 
+  it("keeps Manual Mode when the Provider Connection Test fails", async () => {
+    const wrapper = mount(AppShell);
+
+    await clickButton(wrapper, "Onboarding");
+    await wrapper.get("input[aria-label='Provider name']").setValue("Fake Provider");
+    await wrapper
+      .get("input[aria-label='Provider Credential']")
+      .setValue("bad-secret");
+    await wrapper.get("select[aria-label='Fake Provider test mode']").setValue("failure");
+    await clickButton(wrapper, "Run Provider Connection Test");
+
+    expect(wrapper.text()).toContain("Provider Connection Test failed.");
+    expect(wrapper.text()).toContain("Manual Mode");
+    expect(wrapper.text()).not.toContain("AI Provider connected");
+    expect(wrapper.text()).not.toContain("bad-secret");
+  });
+
+  it("keeps only one active AI Provider when a second provider connects", async () => {
+    const wrapper = mount(AppShell);
+
+    await clickButton(wrapper, "Onboarding");
+    await wrapper.get("input[aria-label='Provider name']").setValue("First Provider");
+    await wrapper.get("input[aria-label='Provider Credential']").setValue("first-secret");
+    await clickButton(wrapper, "Run Provider Connection Test");
+
+    await wrapper.get("input[aria-label='Provider name']").setValue("Second Provider");
+    await wrapper.get("input[aria-label='Provider Credential']").setValue("second-secret");
+    await clickButton(wrapper, "Run Provider Connection Test");
+
+    expect(wrapper.text()).toContain("Active provider: Second Provider");
+    expect(wrapper.text()).not.toContain("Active provider: First Provider");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 
