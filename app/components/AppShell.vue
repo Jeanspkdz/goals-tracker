@@ -8,7 +8,11 @@ import {
   Sparkles
 } from "@lucide/vue";
 import { computed, ref } from "vue";
-import { createRemindersForDailyPlan } from "../domain/reminders";
+import {
+  createRemindersForDailyPlan,
+  snoozeReminder,
+  type Reminder
+} from "../domain/reminders";
 
 type GoalStatus = "Active" | "Completed" | "Archived";
 type TaskPriority = "High" | "Medium" | "Low";
@@ -177,7 +181,7 @@ const reminders = computed(() =>
         endsAt: toDateTime(todayDate, task.endTime)
       }))
     ]
-  })
+  }).map((reminder) => snoozedReminders.value[reminder.id] ?? reminder)
 );
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
@@ -197,6 +201,7 @@ const scheduledTaskDraft = ref<ScheduledTaskDraft>({
   endTime: ""
 });
 const scheduledTaskError = ref("");
+const snoozedReminders = ref<Record<string, Reminder>>({});
 const reminderOffsetMinutes = ref(15);
 const notificationsEnabled = ref(false);
 const taskStatuses: TaskStatus[] = [
@@ -339,6 +344,13 @@ function updateScheduledTaskTime(
   }
 
   scheduledTaskError.value = "";
+}
+
+function snoozeCalendarReminder(reminder: Reminder) {
+  snoozedReminders.value[reminder.id] = snoozeReminder(reminder, {
+    snoozeMinutes: 5,
+    now: reminder.remindAt
+  });
 }
 
 function timeBlocksOverlap(
@@ -620,7 +632,16 @@ function taskPlanningLabel(task: Task) {
                 <p class="planning-state">
                   {{ reminder.timing === "early" ? "Early reminder" : "Start-time reminder" }}
                   · {{ reminder.remindAt }}
+                  <span v-if="reminder.snoozed"> · Snoozed</span>
                 </p>
+                <button
+                  v-if="!reminder.snoozed"
+                  type="button"
+                  @click="snoozeCalendarReminder(reminder)"
+                >
+                  Snooze reminder for {{ reminder.title }}
+                  {{ reminder.timing }}
+                </button>
               </div>
             </li>
           </ul>

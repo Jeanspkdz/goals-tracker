@@ -327,6 +327,39 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("High Priority task starts in 15 minutes");
     expect(wrapper.text()).toContain("High Priority task starting now");
   });
+
+  it("updates reminders after Daily Plan edits and allows one snooze", async () => {
+    const wrapper = mount(AppShell);
+
+    await addScheduledTask(wrapper, {
+      title: "Practice contest notes",
+      priority: "High",
+      startTime: "17:00",
+      endTime: "18:00"
+    });
+
+    expect(wrapper.text()).toContain("High Priority task starts in 15 minutes");
+    expect(wrapper.text()).toContain("T16:45:00.000Z");
+
+    await wrapper
+      .get("input[aria-label='Start time for Practice contest notes']")
+      .setValue("18:00");
+
+    expect(wrapper.text()).toContain("T17:45:00.000Z");
+
+    await clickButton(wrapper, "Snooze reminder for Practice contest notes early");
+
+    expect(wrapper.text()).toContain("Snoozed");
+    expect(wrapper.text()).toContain("T17:50:00.000Z");
+    expect(
+      wrapper
+        .findAll("button")
+        .some(
+          (button) =>
+            button.text() === "Snooze reminder for Practice contest notes early"
+        )
+    ).toBe(false);
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
