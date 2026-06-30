@@ -54,6 +54,34 @@ describe("Goals Tracker app shell", () => {
     }
   });
 
+  it("connects one active AI Provider after a structured generation connection test", async () => {
+    const wrapper = mount(AppShell);
+
+    await clickButton(wrapper, "Onboarding");
+    await wrapper.get("input[aria-label='Provider name']").setValue("Fake Provider");
+    await wrapper
+      .get("input[aria-label='Provider Credential']")
+      .setValue("secret-test-key");
+    await clickButton(wrapper, "Run Provider Connection Test");
+
+    expect(wrapper.text()).toContain("AI Provider connected");
+    expect(wrapper.text()).toContain("Active provider: Fake Provider");
+    expect(wrapper.text()).toContain("Structured text generation");
+    expect(wrapper.text()).toContain("Supported");
+    expect(wrapper.text()).toContain("Conversation evidence import");
+    expect(wrapper.text()).toContain("Disabled");
+    expect(wrapper.text()).toContain(
+      "Fake Provider does not support conversation import."
+    );
+    expect(wrapper.text()).not.toContain("secret-test-key");
+    expect(
+      (
+        wrapper.get("input[aria-label='Provider Credential']")
+          .element as HTMLInputElement
+      ).value
+    ).toBe("");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 

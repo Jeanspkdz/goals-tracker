@@ -13,6 +13,11 @@ import {
   snoozeReminder,
   type Reminder
 } from "../domain/reminders";
+import {
+  createFakeAiProviderAdapter,
+  type ProviderCapability,
+  type ProviderConnectionResult
+} from "../domain/ai-provider";
 
 type GoalStatus = "Active" | "Completed" | "Archived";
 type TaskPriority = "High" | "Medium" | "Low";
@@ -72,6 +77,16 @@ type ScheduledTaskDraft = {
   priority: TaskPriority;
   startTime: string;
   endTime: string;
+};
+
+type ProviderDraft = {
+  providerName: string;
+  credential: string;
+};
+
+type ActiveProvider = {
+  providerName: string;
+  capabilities: ProviderCapability[];
 };
 
 type SurfaceId =
@@ -186,6 +201,12 @@ const reminders = computed(() =>
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
+const providerDraft = ref<ProviderDraft>({
+  providerName: "",
+  credential: ""
+});
+const activeProvider = ref<ActiveProvider | null>(null);
+const providerConnectionError = ref("");
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -229,6 +250,35 @@ function createGoal() {
     tasks: []
   });
   goalTitle.value = "";
+}
+
+async function runProviderConnectionTest() {
+  const providerName = providerDraft.value.providerName.trim();
+  const credential = providerDraft.value.credential;
+
+  if (!providerName || !credential) {
+    return;
+  }
+
+  const adapter = createFakeAiProviderAdapter({ mode: "success" });
+  const result: ProviderConnectionResult = await adapter.testConnection({
+    providerName,
+    secret: credential
+  });
+
+  providerDraft.value.credential = "";
+
+  if (!result.connected) {
+    activeProvider.value = null;
+    providerConnectionError.value = result.error;
+    return;
+  }
+
+  activeProvider.value = {
+    providerName: result.providerName,
+    capabilities: result.capabilities
+  };
+  providerConnectionError.value = "";
 }
 
 function createTaskDraft(): TaskDraft {
@@ -651,6 +701,64 @@ function taskPlanningLabel(task: Task) {
           <h3>No Daily Plan content yet</h3>
           <p>Create an Event or Scheduled Task to start shaping today.</p>
         </div>
+      </div>
+
+      <div v-else-if="activeSurface === 'onboarding'" class="surface-content">
+        <p>{{ surface.description }}</p>
+
+        <section class="form-section" aria-label="AI Provider setup">
+          <h3>AI Provider setup</h3>
+          <label for="provider-name">Provider name</label>
+          <input
+            id="provider-name"
+            v-model="providerDraft.providerName"
+            aria-label="Provider name"
+            type="text"
+          />
+
+          <label for="provider-credential">Provider Credential</label>
+          <input
+            id="provider-credential"
+            v-model="providerDraft.credential"
+            aria-label="Provider Credential"
+            autocomplete="off"
+            type="password"
+          />
+
+          <button type="button" @click="runProviderConnectionTest">
+            Run Provider Connection Test
+          </button>
+          <p v-if="providerConnectionError" class="form-error">
+            {{ providerConnectionError }}
+          </p>
+        </section>
+
+        <section
+          v-if="activeProvider"
+          class="form-section"
+          aria-label="Active AI Provider"
+        >
+          <h3>AI Provider connected</h3>
+          <p>Active provider: {{ activeProvider.providerName }}</p>
+
+          <ul class="task-list" aria-label="Provider Capabilities">
+            <li
+              v-for="capability in activeProvider.capabilities"
+              :key="capability.id"
+              class="task-item"
+            >
+              <div>
+                <strong>{{ capability.label }}</strong>
+                <p>
+                  {{ capability.supported ? "Supported" : "Disabled" }}
+                </p>
+                <p v-if="capability.explanation" class="planning-state">
+                  {{ capability.explanation }}
+                </p>
+              </div>
+            </li>
+          </ul>
+        </section>
       </div>
 
       <div v-else-if="activeSurface === 'goals'" class="surface-content goals-surface">
