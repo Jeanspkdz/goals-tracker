@@ -112,9 +112,10 @@ type GoalSuggestion = {
 type AiSuggestionHistoryRecord = {
   id: number;
   providerName: string;
-  suggestionKind: "goal";
-  outcome: "accepted" | "rejected";
-  structuredSuggestion: GoalSuggestion;
+  suggestionKind: "goal" | "schedule";
+  outcome: "accepted" | "rejected" | "regenerated";
+  structuredSuggestion: GoalSuggestion | ScheduleSuggestion;
+  reason?: string;
 };
 
 type ScheduleSuggestionTask = {
@@ -263,6 +264,8 @@ const goalSuggestionFakeMode = ref<"success" | "failure">("success");
 const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
 const scheduleSuggestions = ref<ScheduleSuggestion[]>([]);
 const scheduleSuggestionError = ref("");
+const scheduleSuggestionStatus = ref("");
+const regenerationReason = ref("");
 const acceptedDailyPlan = ref<DailyPlan | null>(null);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
@@ -415,7 +418,8 @@ async function generateTomorrowScheduleSuggestion() {
     schemaName: "schedule-suggestions"
   });
 
-  const startTime = firstAvailableTomorrowStartTime();
+  const startTime =
+    scheduleSuggestions.value.length > 0 ? "13:00" : firstAvailableTomorrowStartTime();
   scheduleSuggestions.value.push({
     id: Date.now(),
     date: tomorrowDate,
@@ -430,6 +434,36 @@ async function generateTomorrowScheduleSuggestion() {
     explanation: "Works around Events"
   });
   scheduleSuggestionError.value = "";
+}
+
+async function regenerateTomorrowScheduleSuggestion() {
+  const reason = regenerationReason.value.trim();
+
+  if (!reason) {
+    scheduleSuggestionError.value = "Regeneration Reason is required.";
+    scheduleSuggestionStatus.value = "";
+    return;
+  }
+
+  await generateTomorrowScheduleSuggestion();
+
+  const latestSuggestion =
+    scheduleSuggestions.value[scheduleSuggestions.value.length - 1];
+
+  if (latestSuggestion) {
+    aiSuggestionHistory.value.push({
+      id: Date.now(),
+      providerName: activeProvider.value?.providerName ?? "Unknown provider",
+      suggestionKind: "schedule",
+      outcome: "regenerated",
+      structuredSuggestion: latestSuggestion,
+      reason
+    });
+  }
+
+  scheduleSuggestionStatus.value =
+    "Regeneration Reason stored as structured AI Suggestion History.";
+  regenerationReason.value = "";
 }
 
 function firstSchedulableTask() {
@@ -855,15 +889,30 @@ function taskPlanningLabel(task: Task) {
           <button type="button" @click="generateTomorrowScheduleSuggestion">
             Generate Tomorrow Schedule Suggestion
           </button>
+          <label for="regeneration-reason">Regeneration Reason</label>
+          <textarea
+            id="regeneration-reason"
+            v-model="regenerationReason"
+            aria-label="Regeneration Reason"
+          />
+          <button type="button" @click="regenerateTomorrowScheduleSuggestion">
+            Regenerate Schedule Suggestion
+          </button>
           <p v-if="scheduleSuggestionError" class="form-error">
             {{ scheduleSuggestionError }}
+          </p>
+          <p v-if="scheduleSuggestionStatus" class="planning-state">
+            {{ scheduleSuggestionStatus }}
+          </p>
+          <p v-if="scheduleSuggestionStatus" class="planning-state">
+            {{ aiSuggestionHistory[aiSuggestionHistory.length - 1]?.reason }}
           </p>
 
           <ul v-if="scheduleSuggestions.length > 0" class="task-list">
             <li
               v-for="suggestion in scheduleSuggestions"
               :key="suggestion.id"
-              class="task-item"
+              class="task-item schedule-suggestion-card"
             >
               <div>
                 <strong>Suggestion date: {{ suggestion.date }}</strong>

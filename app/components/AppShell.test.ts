@@ -576,6 +576,36 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("13:00-14:00");
     expect(wrapper.text()).not.toContain("Accept Schedule Suggestion");
   });
+
+  it("requires a free-text Regeneration Reason and keeps multiple Schedule Suggestions before acceptance", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await createGoal(wrapper, "Ship schedule suggestions");
+    await addTask(wrapper, {
+      title: "Draft the schedule suggestion flow",
+      priority: "High",
+      deadline: tomorrowDate(),
+      effort: "Focus"
+    });
+    await clickButton(wrapper, "Calendar");
+    await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+    await clickButton(wrapper, "Regenerate Schedule Suggestion");
+
+    expect(wrapper.text()).toContain("Regeneration Reason is required.");
+    expect(wrapper.findAll(".schedule-suggestion-card")).toHaveLength(1);
+
+    await wrapper
+      .get("textarea[aria-label='Regeneration Reason']")
+      .setValue("Need a later focus block after lunch");
+    await clickButton(wrapper, "Regenerate Schedule Suggestion");
+
+    expect(wrapper.text()).toContain(
+      "Regeneration Reason stored as structured AI Suggestion History."
+    );
+    expect(wrapper.findAll(".schedule-suggestion-card")).toHaveLength(2);
+    expect(wrapper.text()).toContain("Need a later focus block after lunch");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
