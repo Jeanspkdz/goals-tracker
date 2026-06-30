@@ -250,6 +250,33 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Scheduled Tasks cannot overlap.");
     expect(wrapper.text()).not.toContain("Overlap the Calendar UI");
   });
+
+  it("allows Event and Scheduled Task overlaps with Event Conflict Feedback", async () => {
+    const wrapper = mount(AppShell);
+
+    await createEvent(wrapper, {
+      title: "Go to a contest",
+      date: "2026-07-05",
+      startTime: "15:00",
+      endTime: "16:00"
+    });
+    await addScheduledTask(wrapper, {
+      title: "Practice contest notes",
+      priority: "Medium",
+      startTime: "15:30",
+      endTime: "16:30"
+    });
+
+    expect(wrapper.text()).toContain("Practice contest notes");
+    expect(wrapper.text()).toContain("Event Conflict Feedback");
+    expect(wrapper.text()).toContain(
+      "Practice contest notes overlaps Go to a contest."
+    );
+    expect(wrapper.text()).toContain(
+      "Specific fixes: reschedule the Scheduled Task or shorten the task block."
+    );
+    expect(wrapper.text()).toContain("Not a Lesson Suggestion");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
@@ -323,4 +350,24 @@ async function addScheduledTask(
     .get("input[aria-label='Scheduled Task end time']")
     .setValue(task.endTime);
   await clickButton(wrapper, "Add Scheduled Task");
+}
+
+async function createEvent(
+  wrapper: ReturnType<typeof mount>,
+  event: {
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  }
+) {
+  await wrapper.get("input[aria-label='Event title']").setValue(event.title);
+  await wrapper.get("input[aria-label='Event date']").setValue(event.date);
+  await wrapper
+    .get("input[aria-label='Event start time']")
+    .setValue(event.startTime);
+  await wrapper
+    .get("input[aria-label='Event end time']")
+    .setValue(event.endTime);
+  await clickButton(wrapper, "Create Event");
 }

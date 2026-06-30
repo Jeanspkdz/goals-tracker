@@ -146,6 +146,16 @@ const surface = computed(
   () =>
     surfaces.find((item) => item.id === activeSurface.value) ?? surfaces[0]
 );
+const eventConflictFeedback = computed(() =>
+  scheduledTasks.value.flatMap((task) =>
+    events.value
+      .filter((event) => timeBlocksOverlap(task, event))
+      .map((event) => ({
+        id: `${task.id}-${event.id}`,
+        message: `${task.title} overlaps ${event.title}.`
+      }))
+  )
+);
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
@@ -492,6 +502,23 @@ function taskPlanningLabel(task: Task) {
             </div>
           </li>
         </ul>
+
+        <section
+          v-if="eventConflictFeedback.length > 0"
+          class="form-section"
+          aria-label="Event Conflict Feedback"
+        >
+          <h3>Event Conflict Feedback</h3>
+          <p
+            v-for="feedback in eventConflictFeedback"
+            :key="feedback.id"
+            class="form-error"
+          >
+            {{ feedback.message }}
+            Specific fixes: reschedule the Scheduled Task or shorten the task
+            block. Not a Lesson Suggestion.
+          </p>
+        </section>
 
         <div v-if="events.length === 0 && scheduledTasks.length === 0" class="empty-state">
           <h3>No Daily Plan content yet</h3>
