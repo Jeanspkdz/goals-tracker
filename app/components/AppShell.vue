@@ -39,6 +39,21 @@ type TaskDraft = {
   effort: TaskEffort;
 };
 
+type CalendarEvent = {
+  id: number;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
+type EventDraft = {
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
 type SurfaceId =
   | "calendar"
   | "onboarding"
@@ -119,6 +134,13 @@ const surface = computed(
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
+const events = ref<CalendarEvent[]>([]);
+const eventDraft = ref<EventDraft>({
+  title: "",
+  date: "",
+  startTime: "",
+  endTime: ""
+});
 const reminderOffsetMinutes = ref(15);
 const notificationsEnabled = ref(false);
 const taskStatuses: TaskStatus[] = [
@@ -178,6 +200,33 @@ function addTask(goal: Goal) {
     status: "Planned"
   });
   taskDrafts.value[goal.id] = createTaskDraft();
+}
+
+function createEvent() {
+  const title = eventDraft.value.title.trim();
+
+  if (
+    !title ||
+    !eventDraft.value.date ||
+    !eventDraft.value.startTime ||
+    !eventDraft.value.endTime
+  ) {
+    return;
+  }
+
+  events.value.push({
+    id: Date.now(),
+    title,
+    date: eventDraft.value.date,
+    startTime: eventDraft.value.startTime,
+    endTime: eventDraft.value.endTime
+  });
+  eventDraft.value = {
+    title: "",
+    date: "",
+    startTime: "",
+    endTime: ""
+  };
 }
 
 function completedTaskCount(goal: Goal) {
@@ -260,7 +309,61 @@ function taskPlanningLabel(task: Task) {
           tasks, reminders, and daily plans.
         </p>
 
-        <div class="empty-state">
+        <section class="form-section" aria-label="Create Event">
+          <h3>Events</h3>
+          <label for="event-title">Event title</label>
+          <input
+            id="event-title"
+            v-model="eventDraft.title"
+            aria-label="Event title"
+            type="text"
+          />
+
+          <div class="task-form-grid">
+            <label>
+              Event date
+              <input
+                v-model="eventDraft.date"
+                aria-label="Event date"
+                type="date"
+              />
+            </label>
+
+            <label>
+              Event start time
+              <input
+                v-model="eventDraft.startTime"
+                aria-label="Event start time"
+                type="time"
+              />
+            </label>
+
+            <label>
+              Event end time
+              <input
+                v-model="eventDraft.endTime"
+                aria-label="Event end time"
+                type="time"
+              />
+            </label>
+          </div>
+
+          <button type="button" @click="createEvent">Create Event</button>
+        </section>
+
+        <ul v-if="events.length > 0" class="task-list" aria-label="Events">
+          <li v-for="event in events" :key="event.id" class="task-item">
+            <div>
+              <strong>{{ event.title }}</strong>
+              <p>
+                {{ event.date }} · {{ event.startTime }}-{{ event.endTime }}
+              </p>
+              <p class="planning-state">Event constraint</p>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="events.length === 0" class="empty-state">
           <h3>Daily Plan</h3>
           <p>
             No Events or Scheduled Tasks are loaded yet. The next slice will add

@@ -208,6 +208,22 @@ describe("Goals Tracker app shell", () => {
 
     expect(wrapper.text()).toContain("Early reminders: 30 minutes before start");
   });
+
+  it("lets the user create one-time Events on the Calendar Screen", async () => {
+    const wrapper = mount(AppShell);
+
+    await wrapper.get("input[aria-label='Event title']").setValue("Go to a contest");
+    await wrapper.get("input[aria-label='Event date']").setValue("2026-07-05");
+    await wrapper.get("input[aria-label='Event start time']").setValue("15:00");
+    await wrapper.get("input[aria-label='Event end time']").setValue("16:00");
+    await clickButton(wrapper, "Create Event");
+
+    expect(wrapper.text()).toContain("Events");
+    expect(wrapper.text()).toContain("Go to a contest");
+    expect(wrapper.text()).toContain("15:00-16:00");
+    expect(wrapper.text()).toContain("Event constraint");
+    expect(wrapper.text()).not.toContain("Goal Progress: 1 of");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
