@@ -548,6 +548,34 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("10:00-11:00");
     expect(wrapper.text()).toContain("Works around Events");
   });
+
+  it("lets the user edit and accept one Schedule Suggestion as tomorrow's Daily Plan", async () => {
+    const wrapper = mount(AppShell);
+    const tomorrow = tomorrowDate();
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await createGoal(wrapper, "Ship schedule suggestions");
+    await addTask(wrapper, {
+      title: "Draft the schedule suggestion flow",
+      priority: "High",
+      deadline: tomorrow,
+      effort: "Focus"
+    });
+    await clickButton(wrapper, "Calendar");
+    await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+    await wrapper
+      .get("input[aria-label='Suggested start time for Draft the schedule suggestion flow']")
+      .setValue("13:00");
+    await wrapper
+      .get("input[aria-label='Suggested end time for Draft the schedule suggestion flow']")
+      .setValue("14:00");
+    await clickButton(wrapper, "Accept Schedule Suggestion");
+
+    expect(wrapper.text()).toContain(`Accepted Daily Plan for ${tomorrow}`);
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow");
+    expect(wrapper.text()).toContain("13:00-14:00");
+    expect(wrapper.text()).not.toContain("Accept Schedule Suggestion");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

@@ -131,6 +131,11 @@ type ScheduleSuggestion = {
   explanation: string;
 };
 
+type DailyPlan = {
+  date: string;
+  tasks: ScheduleSuggestionTask[];
+};
+
 type SurfaceId =
   | "calendar"
   | "onboarding"
@@ -258,6 +263,7 @@ const goalSuggestionFakeMode = ref<"success" | "failure">("success");
 const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
 const scheduleSuggestions = ref<ScheduleSuggestion[]>([]);
 const scheduleSuggestionError = ref("");
+const acceptedDailyPlan = ref<DailyPlan | null>(null);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -445,6 +451,14 @@ function firstAvailableTomorrowStartTime() {
 
       return timeBlocksOverlap(proposed, event) ? event.endTime : candidate;
     }, "09:00");
+}
+
+function acceptScheduleSuggestion(suggestion: ScheduleSuggestion) {
+  acceptedDailyPlan.value = {
+    date: suggestion.date,
+    tasks: suggestion.tasks.map((task) => ({ ...task }))
+  };
+  scheduleSuggestions.value = [];
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -858,8 +872,52 @@ function taskPlanningLabel(task: Task) {
                   <li v-for="task in suggestion.tasks" :key="task.title">
                     {{ task.title }} · {{ task.startTime }}-{{ task.endTime }}
                     · {{ task.priority }} Priority
+                    <div class="task-form-grid">
+                      <label>
+                        Suggested start time for {{ task.title }}
+                        <input
+                          v-model="task.startTime"
+                          :aria-label="`Suggested start time for ${task.title}`"
+                          type="time"
+                        />
+                      </label>
+                      <label>
+                        Suggested end time for {{ task.title }}
+                        <input
+                          v-model="task.endTime"
+                          :aria-label="`Suggested end time for ${task.title}`"
+                          type="time"
+                        />
+                      </label>
+                    </div>
                   </li>
                 </ul>
+              </div>
+              <button type="button" @click="acceptScheduleSuggestion(suggestion)">
+                Accept Schedule Suggestion
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <section
+          v-if="acceptedDailyPlan"
+          class="form-section"
+          aria-label="Accepted Daily Plan"
+        >
+          <h3>Accepted Daily Plan for {{ acceptedDailyPlan.date }}</h3>
+          <ul class="task-list">
+            <li
+              v-for="task in acceptedDailyPlan.tasks"
+              :key="task.title"
+              class="task-item"
+            >
+              <div>
+                <strong>{{ task.title }}</strong>
+                <p>
+                  {{ task.startTime }}-{{ task.endTime }} ·
+                  {{ task.priority }} Priority
+                </p>
               </div>
             </li>
           </ul>
