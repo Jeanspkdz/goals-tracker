@@ -192,6 +192,22 @@ describe("Goals Tracker app shell", () => {
       "Goal Progress: 0 of 1 Tasks completed"
     );
   });
+
+  it("lets the user configure the global Reminder Offset and warns when notifications are disabled", async () => {
+    const wrapper = mount(AppShell);
+
+    await clickButton(wrapper, "Settings");
+
+    expect(wrapper.text()).toContain(
+      "Notifications are strongly recommended for reliable reminders."
+    );
+    expect(wrapper.text()).toContain("Notifications: Disabled");
+    expect(wrapper.text()).toContain("Early reminders: 15 minutes before start");
+
+    await wrapper.get("input[aria-label='Reminder Offset']").setValue(30);
+
+    expect(wrapper.text()).toContain("Early reminders: 30 minutes before start");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

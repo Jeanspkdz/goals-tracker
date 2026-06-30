@@ -119,6 +119,8 @@ const surface = computed(
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
+const reminderOffsetMinutes = ref(15);
+const notificationsEnabled = ref(false);
 const taskStatuses: TaskStatus[] = [
   "Planned",
   "Completed",
@@ -421,6 +423,36 @@ function taskPlanningLabel(task: Task) {
             </ul>
           </article>
         </div>
+      </div>
+
+      <div v-else-if="activeSurface === 'settings'" class="surface-content">
+        <p>{{ surface.description }}</p>
+
+        <section class="form-section" aria-label="Reminder Settings">
+          <h3>Reminder Settings</h3>
+          <p class="form-error" v-if="!notificationsEnabled">
+            Notifications are strongly recommended for reliable reminders.
+          </p>
+
+          <p>
+            Notifications:
+            <strong>{{ notificationsEnabled ? "Enabled" : "Disabled" }}</strong>
+          </p>
+
+          <label for="reminder-offset">Reminder Offset</label>
+          <input
+            id="reminder-offset"
+            v-model.number="reminderOffsetMinutes"
+            aria-label="Reminder Offset"
+            min="0"
+            step="5"
+            type="number"
+          />
+
+          <p class="planning-state">
+            Early reminders: {{ reminderOffsetMinutes }} minutes before start
+          </p>
+        </section>
       </div>
 
       <div v-else class="surface-content">
