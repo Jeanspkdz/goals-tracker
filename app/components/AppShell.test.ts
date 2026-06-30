@@ -517,7 +517,36 @@ describe("Goals Tracker app shell", () => {
           (button) =>
             button.text() === "Snooze reminder for Practice contest notes early"
         )
-    ).toBe(false);
+      ).toBe(false);
+  });
+
+  it("generates a tomorrow-only Schedule Suggestion around Events", async () => {
+    const wrapper = mount(AppShell);
+    const tomorrow = tomorrowDate();
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await createGoal(wrapper, "Ship schedule suggestions");
+    await addTask(wrapper, {
+      title: "Draft the schedule suggestion flow",
+      priority: "High",
+      deadline: tomorrow,
+      effort: "Focus"
+    });
+    await clickButton(wrapper, "Calendar");
+    await createEvent(wrapper, {
+      title: "Morning appointment",
+      date: tomorrow,
+      startTime: "09:00",
+      endTime: "10:00"
+    });
+    await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+
+    expect(wrapper.text()).toContain("Schedule Suggestions");
+    expect(wrapper.text()).toContain(`Suggestion date: ${tomorrow}`);
+    expect(wrapper.text()).toContain("Morning appointment");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow");
+    expect(wrapper.text()).toContain("10:00-11:00");
+    expect(wrapper.text()).toContain("Works around Events");
   });
 });
 
@@ -623,4 +652,10 @@ async function createEvent(
     .get("input[aria-label='Event end time']")
     .setValue(event.endTime);
   await clickButton(wrapper, "Create Event");
+}
+
+function tomorrowDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
 }

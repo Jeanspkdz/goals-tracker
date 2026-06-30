@@ -117,6 +117,20 @@ type AiSuggestionHistoryRecord = {
   structuredSuggestion: GoalSuggestion;
 };
 
+type ScheduleSuggestionTask = {
+  title: string;
+  priority: TaskPriority;
+  startTime: string;
+  endTime: string;
+};
+
+type ScheduleSuggestion = {
+  id: number;
+  date: string;
+  tasks: ScheduleSuggestionTask[];
+  explanation: string;
+};
+
 type SurfaceId =
   | "calendar"
   | "onboarding"
@@ -242,6 +256,8 @@ const goalSuggestionError = ref("");
 const goalSuggestionStatus = ref("");
 const goalSuggestionFakeMode = ref<"success" | "failure">("success");
 const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
+const scheduleSuggestions = ref<ScheduleSuggestion[]>([]);
+const scheduleSuggestionError = ref("");
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -268,6 +284,7 @@ const taskStatuses: TaskStatus[] = [
   "Blocked"
 ];
 const todayDate = new Date().toISOString().slice(0, 10);
+const tomorrowDate = getTomorrowDate();
 
 function createGoal() {
   const title = goalTitle.value.trim();
@@ -369,6 +386,65 @@ function rejectGoalSuggestion(suggestion: GoalSuggestion) {
   );
   goalSuggestionStatus.value =
     "Goal Suggestion rejected and stored as structured AI Suggestion History.";
+}
+
+async function generateTomorrowScheduleSuggestion() {
+  if (!activeProvider.value) {
+    scheduleSuggestionError.value =
+      "Connect an AI Provider before generating Schedule Suggestions.";
+    return;
+  }
+
+  const task = firstSchedulableTask();
+
+  if (!task) {
+    scheduleSuggestionError.value =
+      "Create an Active Goal with a schedulable Task first.";
+    return;
+  }
+
+  const adapter = createFakeAiProviderAdapter({ mode: "success" });
+  await adapter.generateStructuredText({
+    instruction: "Generate a tomorrow-only Schedule Suggestion.",
+    schemaName: "schedule-suggestions"
+  });
+
+  const startTime = firstAvailableTomorrowStartTime();
+  scheduleSuggestions.value.push({
+    id: Date.now(),
+    date: tomorrowDate,
+    tasks: [
+      {
+        title: task.title,
+        priority: task.priority,
+        startTime,
+        endTime: addOneHour(startTime)
+      }
+    ],
+    explanation: "Works around Events"
+  });
+  scheduleSuggestionError.value = "";
+}
+
+function firstSchedulableTask() {
+  return goals.value
+    .filter((goal) => goal.status === "Active")
+    .flatMap((goal) => goal.tasks)
+    .find((task) => task.status !== "Skipped" && task.status !== "Blocked");
+}
+
+function firstAvailableTomorrowStartTime() {
+  return events.value
+    .filter((event) => event.date === tomorrowDate)
+    .sort((first, second) => first.startTime.localeCompare(second.startTime))
+    .reduce((candidate, event) => {
+      const proposed = {
+        startTime: candidate,
+        endTime: addOneHour(candidate)
+      };
+
+      return timeBlocksOverlap(proposed, event) ? event.endTime : candidate;
+    }, "09:00");
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -564,6 +640,17 @@ function toDateTime(date: string, time: string) {
   return `${date}T${time}:00.000Z`;
 }
 
+function getTomorrowDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function addOneHour(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  return `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function completedTaskCount(goal: Goal) {
   return goal.tasks.filter((task) => task.status === "Completed").length;
 }
@@ -746,6 +833,36 @@ function taskPlanningLabel(task: Task) {
           <p v-if="scheduledTaskError" class="form-error">
             {{ scheduledTaskError }}
           </p>
+        </section>
+
+        <section class="form-section" aria-label="Schedule Suggestions">
+          <h3>Schedule Suggestions</h3>
+          <p>Tomorrow only: {{ tomorrowDate }}</p>
+          <button type="button" @click="generateTomorrowScheduleSuggestion">
+            Generate Tomorrow Schedule Suggestion
+          </button>
+          <p v-if="scheduleSuggestionError" class="form-error">
+            {{ scheduleSuggestionError }}
+          </p>
+
+          <ul v-if="scheduleSuggestions.length > 0" class="task-list">
+            <li
+              v-for="suggestion in scheduleSuggestions"
+              :key="suggestion.id"
+              class="task-item"
+            >
+              <div>
+                <strong>Suggestion date: {{ suggestion.date }}</strong>
+                <p class="planning-state">{{ suggestion.explanation }}</p>
+                <ul>
+                  <li v-for="task in suggestion.tasks" :key="task.title">
+                    {{ task.title }} · {{ task.startTime }}-{{ task.endTime }}
+                    · {{ task.priority }} Priority
+                  </li>
+                </ul>
+              </div>
+            </li>
+          </ul>
         </section>
 
         <ul
