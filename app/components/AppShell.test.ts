@@ -302,6 +302,31 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.get("input[aria-label='Start time for Review Calendar UI']").element)
       .toHaveProperty("value", "10:30");
   });
+
+  it("shows early and start-time reminders for Events and Scheduled Tasks", async () => {
+    const wrapper = mount(AppShell);
+
+    await createEvent(wrapper, {
+      title: "Go to a contest",
+      date: "2026-07-05",
+      startTime: "15:00",
+      endTime: "16:00"
+    });
+    await addScheduledTask(wrapper, {
+      title: "Practice contest notes",
+      priority: "High",
+      startTime: "17:00",
+      endTime: "18:00"
+    });
+
+    expect(wrapper.text()).toContain("Reminders");
+    expect(wrapper.text()).toContain("Go to a contest");
+    expect(wrapper.text()).toContain("Event at 15:00");
+    expect(wrapper.text()).toContain("Event starting now");
+    expect(wrapper.text()).toContain("Practice contest notes");
+    expect(wrapper.text()).toContain("High Priority task starts in 15 minutes");
+    expect(wrapper.text()).toContain("High Priority task starting now");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

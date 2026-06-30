@@ -8,6 +8,7 @@ import {
   Sparkles
 } from "@lucide/vue";
 import { computed, ref } from "vue";
+import { createRemindersForDailyPlan } from "../domain/reminders";
 
 type GoalStatus = "Active" | "Completed" | "Archived";
 type TaskPriority = "High" | "Medium" | "Low";
@@ -156,6 +157,28 @@ const eventConflictFeedback = computed(() =>
       }))
   )
 );
+const reminders = computed(() =>
+  createRemindersForDailyPlan({
+    reminderOffsetMinutes: reminderOffsetMinutes.value,
+    items: [
+      ...events.value.map((event) => ({
+        id: `event-${event.id}`,
+        kind: "event" as const,
+        title: event.title,
+        startsAt: toDateTime(event.date, event.startTime),
+        endsAt: toDateTime(event.date, event.endTime)
+      })),
+      ...scheduledTasks.value.map((task) => ({
+        id: `scheduled-task-${task.id}`,
+        kind: "scheduled-task" as const,
+        title: task.title,
+        priority: task.priority,
+        startsAt: toDateTime(todayDate, task.startTime),
+        endsAt: toDateTime(todayDate, task.endTime)
+      }))
+    ]
+  })
+);
 const goals = ref<Goal[]>([]);
 const goalTitle = ref("");
 const taskDrafts = ref<Record<number, TaskDraft>>({});
@@ -183,6 +206,7 @@ const taskStatuses: TaskStatus[] = [
   "Skipped",
   "Blocked"
 ];
+const todayDate = new Date().toISOString().slice(0, 10);
 
 function createGoal() {
   const title = goalTitle.value.trim();
@@ -322,6 +346,10 @@ function timeBlocksOverlap(
   second: { startTime: string; endTime: string }
 ) {
   return first.startTime < second.endTime && second.startTime < first.endTime;
+}
+
+function toDateTime(date: string, time: string) {
+  return `${date}T${time}:00.000Z`;
 }
 
 function completedTaskCount(goal: Goal) {
@@ -572,6 +600,30 @@ function taskPlanningLabel(task: Task) {
             Specific fixes: reschedule the Scheduled Task or shorten the task
             block. Not a Lesson Suggestion.
           </p>
+        </section>
+
+        <section
+          v-if="reminders.length > 0"
+          class="form-section"
+          aria-label="Reminders"
+        >
+          <h3>Reminders</h3>
+          <ul class="task-list">
+            <li
+              v-for="reminder in reminders"
+              :key="reminder.id"
+              class="task-item"
+            >
+              <div>
+                <strong>{{ reminder.title }}</strong>
+                <p>{{ reminder.body }}</p>
+                <p class="planning-state">
+                  {{ reminder.timing === "early" ? "Early reminder" : "Start-time reminder" }}
+                  · {{ reminder.remindAt }}
+                </p>
+              </div>
+            </li>
+          </ul>
         </section>
 
         <div v-if="events.length === 0 && scheduledTasks.length === 0" class="empty-state">
