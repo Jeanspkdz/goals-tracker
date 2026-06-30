@@ -495,6 +495,21 @@ function acceptScheduleSuggestion(suggestion: ScheduleSuggestion) {
   scheduleSuggestions.value = [];
 }
 
+function rejectScheduleSuggestion(suggestion: ScheduleSuggestion) {
+  aiSuggestionHistory.value.push({
+    id: Date.now(),
+    providerName: activeProvider.value?.providerName ?? "Unknown provider",
+    suggestionKind: "schedule",
+    outcome: "rejected",
+    structuredSuggestion: suggestion
+  });
+  scheduleSuggestions.value = scheduleSuggestions.value.filter(
+    (candidate) => candidate.id !== suggestion.id
+  );
+  scheduleSuggestionStatus.value =
+    "Schedule Suggestion rejected and stored as structured AI Suggestion History.";
+}
+
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
   const suggestions = data.suggestions;
 
@@ -944,6 +959,9 @@ function taskPlanningLabel(task: Task) {
               </div>
               <button type="button" @click="acceptScheduleSuggestion(suggestion)">
                 Accept Schedule Suggestion
+              </button>
+              <button type="button" @click="rejectScheduleSuggestion(suggestion)">
+                Reject Schedule Suggestion
               </button>
             </li>
           </ul>

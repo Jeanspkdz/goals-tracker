@@ -606,6 +606,28 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.findAll(".schedule-suggestion-card")).toHaveLength(2);
     expect(wrapper.text()).toContain("Need a later focus block after lunch");
   });
+
+  it("rejects a Schedule Suggestion into structured AI Suggestion History", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await createGoal(wrapper, "Ship schedule suggestions");
+    await addTask(wrapper, {
+      title: "Draft the schedule suggestion flow",
+      priority: "High",
+      deadline: tomorrowDate(),
+      effort: "Focus"
+    });
+    await clickButton(wrapper, "Calendar");
+    await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+    await clickButton(wrapper, "Reject Schedule Suggestion");
+
+    expect(wrapper.text()).toContain(
+      "Schedule Suggestion rejected and stored as structured AI Suggestion History."
+    );
+    expect(wrapper.findAll(".schedule-suggestion-card")).toHaveLength(0);
+    expect(wrapper.text()).not.toContain("Accepted Daily Plan");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
