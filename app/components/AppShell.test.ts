@@ -224,6 +224,32 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Event constraint");
     expect(wrapper.text()).not.toContain("Goal Progress: 1 of");
   });
+
+  it("prevents overlapping Scheduled Tasks in the Daily Plan", async () => {
+    const wrapper = mount(AppShell);
+
+    await addScheduledTask(wrapper, {
+      title: "Write Calendar UI",
+      priority: "High",
+      startTime: "09:00",
+      endTime: "10:00"
+    });
+
+    expect(wrapper.text()).toContain("Daily Plan");
+    expect(wrapper.text()).toContain("Write Calendar UI");
+    expect(wrapper.text()).toContain("09:00-10:00");
+    expect(wrapper.text()).toContain("High Priority");
+
+    await addScheduledTask(wrapper, {
+      title: "Overlap the Calendar UI",
+      priority: "Medium",
+      startTime: "09:30",
+      endTime: "10:30"
+    });
+
+    expect(wrapper.text()).toContain("Scheduled Tasks cannot overlap.");
+    expect(wrapper.text()).not.toContain("Overlap the Calendar UI");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
@@ -273,4 +299,28 @@ function goalCardText(wrapper: ReturnType<typeof mount>, goalTitle: string) {
 
   expect(card).toBeDefined();
   return card?.text() ?? "";
+}
+
+async function addScheduledTask(
+  wrapper: ReturnType<typeof mount>,
+  task: {
+    title: string;
+    priority: "High" | "Medium" | "Low";
+    startTime: string;
+    endTime: string;
+  }
+) {
+  await wrapper
+    .get("input[aria-label='Scheduled Task title']")
+    .setValue(task.title);
+  await wrapper
+    .get("select[aria-label='Scheduled Task Priority']")
+    .setValue(task.priority);
+  await wrapper
+    .get("input[aria-label='Scheduled Task start time']")
+    .setValue(task.startTime);
+  await wrapper
+    .get("input[aria-label='Scheduled Task end time']")
+    .setValue(task.endTime);
+  await clickButton(wrapper, "Add Scheduled Task");
 }

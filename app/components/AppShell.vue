@@ -54,6 +54,21 @@ type EventDraft = {
   endTime: string;
 };
 
+type ScheduledTask = {
+  id: number;
+  title: string;
+  priority: TaskPriority;
+  startTime: string;
+  endTime: string;
+};
+
+type ScheduledTaskDraft = {
+  title: string;
+  priority: TaskPriority;
+  startTime: string;
+  endTime: string;
+};
+
 type SurfaceId =
   | "calendar"
   | "onboarding"
@@ -141,6 +156,14 @@ const eventDraft = ref<EventDraft>({
   startTime: "",
   endTime: ""
 });
+const scheduledTasks = ref<ScheduledTask[]>([]);
+const scheduledTaskDraft = ref<ScheduledTaskDraft>({
+  title: "",
+  priority: "Medium",
+  startTime: "",
+  endTime: ""
+});
+const scheduledTaskError = ref("");
 const reminderOffsetMinutes = ref(15);
 const notificationsEnabled = ref(false);
 const taskStatuses: TaskStatus[] = [
@@ -227,6 +250,47 @@ function createEvent() {
     startTime: "",
     endTime: ""
   };
+}
+
+function addScheduledTask() {
+  const title = scheduledTaskDraft.value.title.trim();
+
+  if (
+    !title ||
+    !scheduledTaskDraft.value.startTime ||
+    !scheduledTaskDraft.value.endTime
+  ) {
+    return;
+  }
+
+  const candidate: ScheduledTask = {
+    id: Date.now(),
+    title,
+    priority: scheduledTaskDraft.value.priority,
+    startTime: scheduledTaskDraft.value.startTime,
+    endTime: scheduledTaskDraft.value.endTime
+  };
+
+  if (scheduledTasks.value.some((task) => timeBlocksOverlap(task, candidate))) {
+    scheduledTaskError.value = "Scheduled Tasks cannot overlap.";
+    return;
+  }
+
+  scheduledTasks.value.push(candidate);
+  scheduledTaskError.value = "";
+  scheduledTaskDraft.value = {
+    title: "",
+    priority: "Medium",
+    startTime: "",
+    endTime: ""
+  };
+}
+
+function timeBlocksOverlap(
+  first: { startTime: string; endTime: string },
+  second: { startTime: string; endTime: string }
+) {
+  return first.startTime < second.endTime && second.startTime < first.endTime;
 }
 
 function completedTaskCount(goal: Goal) {
@@ -363,12 +427,75 @@ function taskPlanningLabel(task: Task) {
           </li>
         </ul>
 
-        <div v-if="events.length === 0" class="empty-state">
+        <section class="form-section" aria-label="Daily Plan">
           <h3>Daily Plan</h3>
-          <p>
-            No Events or Scheduled Tasks are loaded yet. The next slice will add
-            the behavior behind this shell.
+          <label for="scheduled-task-title">Scheduled Task title</label>
+          <input
+            id="scheduled-task-title"
+            v-model="scheduledTaskDraft.title"
+            aria-label="Scheduled Task title"
+            type="text"
+          />
+
+          <div class="task-form-grid">
+            <label>
+              Scheduled Task Priority
+              <select
+                v-model="scheduledTaskDraft.priority"
+                aria-label="Scheduled Task Priority"
+              >
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </label>
+
+            <label>
+              Scheduled Task start time
+              <input
+                v-model="scheduledTaskDraft.startTime"
+                aria-label="Scheduled Task start time"
+                type="time"
+              />
+            </label>
+
+            <label>
+              Scheduled Task end time
+              <input
+                v-model="scheduledTaskDraft.endTime"
+                aria-label="Scheduled Task end time"
+                type="time"
+              />
+            </label>
+          </div>
+
+          <button type="button" @click="addScheduledTask">
+            Add Scheduled Task
+          </button>
+          <p v-if="scheduledTaskError" class="form-error">
+            {{ scheduledTaskError }}
           </p>
+        </section>
+
+        <ul
+          v-if="scheduledTasks.length > 0"
+          class="task-list"
+          aria-label="Scheduled Tasks"
+        >
+          <li v-for="task in scheduledTasks" :key="task.id" class="task-item">
+            <div>
+              <strong>{{ task.title }}</strong>
+              <p>
+                {{ task.startTime }}-{{ task.endTime }} ·
+                {{ task.priority }} Priority
+              </p>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="events.length === 0 && scheduledTasks.length === 0" class="empty-state">
+          <h3>No Daily Plan content yet</h3>
+          <p>Create an Event or Scheduled Task to start shaping today.</p>
         </div>
       </div>
 
