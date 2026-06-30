@@ -628,6 +628,30 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.findAll(".schedule-suggestion-card")).toHaveLength(0);
     expect(wrapper.text()).not.toContain("Accepted Daily Plan");
   });
+
+  it("reviews planned Scheduled Tasks and requires Daily Capacity", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+
+    expect(wrapper.text()).toContain("Daily Review Flow");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow");
+    expect(wrapper.text()).toContain("Daily Capacity");
+
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Completed");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Daily Capacity is required.");
+
+    await clickButton(wrapper, "Daily Capacity Normal");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Daily Review completed.");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Completed");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
@@ -738,4 +762,18 @@ function tomorrowDate() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+async function createAcceptedTomorrowPlan(wrapper: ReturnType<typeof mount>) {
+  await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+  await createGoal(wrapper, "Ship schedule suggestions");
+  await addTask(wrapper, {
+    title: "Draft the schedule suggestion flow",
+    priority: "High",
+    deadline: tomorrowDate(),
+    effort: "Focus"
+  });
+  await clickButton(wrapper, "Calendar");
+  await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+  await clickButton(wrapper, "Accept Schedule Suggestion");
 }

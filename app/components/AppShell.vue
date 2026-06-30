@@ -23,6 +23,8 @@ type GoalStatus = "Active" | "Completed" | "Archived";
 type TaskPriority = "High" | "Medium" | "Low";
 type TaskEffort = "Light" | "Focus";
 type TaskStatus = "Planned" | "Completed" | "Deferred" | "Skipped" | "Blocked";
+type ReviewCompletionStatus = "Planned" | "Completed" | "Incomplete";
+type DailyCapacity = "Low" | "Normal" | "High";
 
 type Task = {
   id: number;
@@ -267,6 +269,10 @@ const scheduleSuggestionError = ref("");
 const scheduleSuggestionStatus = ref("");
 const regenerationReason = ref("");
 const acceptedDailyPlan = ref<DailyPlan | null>(null);
+const dailyReviewStatuses = ref<Record<string, ReviewCompletionStatus>>({});
+const dailyCapacity = ref<DailyCapacity | "">("");
+const dailyReviewError = ref("");
+const dailyReviewCompleted = ref(false);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -508,6 +514,25 @@ function rejectScheduleSuggestion(suggestion: ScheduleSuggestion) {
   );
   scheduleSuggestionStatus.value =
     "Schedule Suggestion rejected and stored as structured AI Suggestion History.";
+}
+
+function reviewStatusFor(task: ScheduleSuggestionTask) {
+  dailyReviewStatuses.value[task.title] ??= "Planned";
+  return dailyReviewStatuses.value[task.title];
+}
+
+function setReviewStatus(task: ScheduleSuggestionTask, status: ReviewCompletionStatus) {
+  dailyReviewStatuses.value[task.title] = status;
+}
+
+function completeDailyReview() {
+  if (!dailyCapacity.value) {
+    dailyReviewError.value = "Daily Capacity is required.";
+    return;
+  }
+
+  dailyReviewCompleted.value = true;
+  dailyReviewError.value = "";
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -1403,6 +1428,92 @@ function taskPlanningLabel(task: Task) {
               </li>
             </ul>
           </article>
+        </div>
+      </div>
+
+      <div v-else-if="activeSurface === 'daily-review'" class="surface-content">
+        <p>{{ surface.description }}</p>
+
+        <section
+          v-if="acceptedDailyPlan"
+          class="form-section"
+          aria-label="Daily Review Flow"
+        >
+          <h3>Daily Review Flow</h3>
+          <p>Reviewing Daily Plan for {{ acceptedDailyPlan.date }}</p>
+
+          <ul class="task-list">
+            <li
+              v-for="task in acceptedDailyPlan.tasks"
+              :key="task.title"
+              class="task-item"
+            >
+              <div>
+                <strong>{{ task.title }}</strong>
+                <p>{{ task.startTime }}-{{ task.endTime }}</p>
+              </div>
+              <label>
+                Completion status for {{ task.title }}
+                <select
+                  :aria-label="`Completion status for ${task.title}`"
+                  :value="reviewStatusFor(task)"
+                  @change="
+                    setReviewStatus(
+                      task,
+                      ($event.target as HTMLSelectElement).value as ReviewCompletionStatus
+                    )
+                  "
+                >
+                  <option>Planned</option>
+                  <option>Completed</option>
+                  <option>Incomplete</option>
+                </select>
+              </label>
+            </li>
+          </ul>
+
+          <section class="form-section" aria-label="Daily Capacity">
+            <h3>Daily Capacity</h3>
+            <button type="button" @click="dailyCapacity = 'Low'">
+              Daily Capacity Low
+            </button>
+            <button type="button" @click="dailyCapacity = 'Normal'">
+              Daily Capacity Normal
+            </button>
+            <button type="button" @click="dailyCapacity = 'High'">
+              Daily Capacity High
+            </button>
+            <p v-if="dailyCapacity" class="planning-state">
+              Daily Capacity: {{ dailyCapacity }}
+            </p>
+          </section>
+
+          <p v-if="dailyReviewError" class="form-error">
+            {{ dailyReviewError }}
+          </p>
+          <button type="button" @click="completeDailyReview">
+            Complete Daily Review
+          </button>
+
+          <section
+            v-if="dailyReviewCompleted"
+            class="form-section"
+            aria-label="Daily Review Summary"
+          >
+            <h3>Daily Review completed.</h3>
+            <p
+              v-for="task in acceptedDailyPlan.tasks"
+              :key="task.title"
+              class="planning-state"
+            >
+              {{ task.title }}: {{ reviewStatusFor(task) }}
+            </p>
+          </section>
+        </section>
+
+        <div v-else class="empty-state">
+          <h3>No Daily Plan to review</h3>
+          <p>Accept a Daily Plan before starting Daily Review.</p>
         </div>
       </div>
 
