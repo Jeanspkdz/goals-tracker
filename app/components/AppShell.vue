@@ -343,6 +343,22 @@ function acceptGoalSuggestion(suggestion: GoalSuggestion) {
   goalSuggestionStatus.value = "Active Goal created from Goal Suggestion.";
 }
 
+function rejectGoalSuggestion(suggestion: GoalSuggestion) {
+  aiSuggestionHistory.value.push({
+    id: Date.now(),
+    providerName: activeProvider.value?.providerName ?? "Unknown provider",
+    suggestionKind: "goal",
+    outcome: "rejected",
+    structuredSuggestion: suggestion
+  });
+  goalPrompt.value = "";
+  goalSuggestions.value = goalSuggestions.value.filter(
+    (candidate) => candidate.id !== suggestion.id
+  );
+  goalSuggestionStatus.value =
+    "Goal Suggestion rejected and stored as structured AI Suggestion History.";
+}
+
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
   const suggestions = data.suggestions;
 
@@ -959,6 +975,9 @@ function taskPlanningLabel(task: Task) {
 
               <button type="button" @click="acceptGoalSuggestion(suggestion)">
                 Accept Goal Suggestion {{ suggestion.goalText }}
+              </button>
+              <button type="button" @click="rejectGoalSuggestion(suggestion)">
+                Reject Goal Suggestion {{ suggestion.goalText }}
               </button>
             </li>
           </ul>

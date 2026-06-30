@@ -173,6 +173,28 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Focus Effort");
   });
 
+  it("rejects a Goal Suggestion into structured AI Suggestion History only", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await clickButton(wrapper, "Goals");
+    await wrapper
+      .get("textarea[aria-label='Goal Prompt']")
+      .setValue("raw prompt that should not be kept");
+    await clickButton(wrapper, "Generate Goal Suggestions");
+    await clickButton(
+      wrapper,
+      "Reject Goal Suggestion Ship a Nuxt goals tracker onboarding flow"
+    );
+
+    expect(wrapper.text()).toContain(
+      "Goal Suggestion rejected and stored as structured AI Suggestion History."
+    );
+    expect(wrapper.text()).toContain("No manual Goals yet");
+    expect(wrapper.text()).not.toContain("raw prompt that should not be kept");
+    expect(wrapper.text()).not.toContain("Ship a Nuxt goals tracker onboarding flow");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 
