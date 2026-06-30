@@ -240,6 +240,7 @@ const goalPrompt = ref("");
 const goalSuggestions = ref<GoalSuggestion[]>([]);
 const goalSuggestionError = ref("");
 const goalSuggestionStatus = ref("");
+const goalSuggestionFakeMode = ref<"success" | "failure">("success");
 const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
@@ -299,15 +300,26 @@ async function generateGoalSuggestions() {
     return;
   }
 
-  const adapter = createFakeAiProviderAdapter({ mode: "success" });
-  const result = await adapter.generateStructuredText({
-    instruction: prompt,
-    schemaName: "goal-suggestions"
-  });
+  try {
+    const adapter = createFakeAiProviderAdapter({
+      mode: goalSuggestionFakeMode.value
+    });
+    const result = await adapter.generateStructuredText({
+      instruction: prompt,
+      schemaName: "goal-suggestions"
+    });
 
-  goalSuggestions.value = parseGoalSuggestions(result.data);
-  goalSuggestionError.value = "";
-  goalSuggestionStatus.value = "";
+    goalSuggestions.value = parseGoalSuggestions(result.data);
+    goalSuggestionError.value = "";
+    goalSuggestionStatus.value = "";
+  } catch (error) {
+    goalSuggestions.value = [];
+    goalSuggestionStatus.value = "";
+    goalSuggestionError.value =
+      error instanceof Error
+        ? error.message
+        : "Goal Suggestion generation failed.";
+  }
 }
 
 function acceptGoalSuggestion(suggestion: GoalSuggestion) {
@@ -936,6 +948,16 @@ function taskPlanningLabel(task: Task) {
           <button type="button" @click="generateGoalSuggestions">
             Generate Goal Suggestions
           </button>
+          <label>
+            Fake Goal Suggestion mode
+            <select
+              v-model="goalSuggestionFakeMode"
+              aria-label="Fake Goal Suggestion mode"
+            >
+              <option>success</option>
+              <option>failure</option>
+            </select>
+          </label>
           <p v-if="goalSuggestionError" class="form-error">
             {{ goalSuggestionError }}
           </p>

@@ -195,6 +195,24 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).not.toContain("Ship a Nuxt goals tracker onboarding flow");
   });
 
+  it("shows provider failure when Goal Suggestion generation fails", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await clickButton(wrapper, "Goals");
+    await wrapper
+      .get("textarea[aria-label='Goal Prompt']")
+      .setValue("Help me become better at planning");
+    await wrapper
+      .get("select[aria-label='Fake Goal Suggestion mode']")
+      .setValue("failure");
+    await clickButton(wrapper, "Generate Goal Suggestions");
+
+    expect(wrapper.text()).toContain("Goal Suggestion generation failed.");
+    expect(wrapper.text()).toContain("No manual Goals yet");
+    expect(wrapper.text()).not.toContain("Ship a Nuxt goals tracker onboarding flow");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 

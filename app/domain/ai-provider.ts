@@ -81,6 +81,10 @@ export function createFakeAiProviderAdapter({
       };
     },
     async generateStructuredText(input) {
+      if (mode === "failure") {
+        throw new Error("Goal Suggestion generation failed.");
+      }
+
       if (input.schemaName === "goal-suggestions") {
         return {
           schemaName: input.schemaName,
