@@ -283,6 +283,11 @@ async function runProviderConnectionTest() {
   providerConnectionError.value = "";
 }
 
+function disconnectProvider() {
+  activeProvider.value = null;
+  providerConnectionError.value = "";
+}
+
 function createTaskDraft(): TaskDraft {
   return {
     title: "",
@@ -775,6 +780,10 @@ function taskPlanningLabel(task: Task) {
               </div>
             </li>
           </ul>
+
+          <button type="button" @click="disconnectProvider">
+            Disconnect Provider
+          </button>
         </section>
       </div>
 

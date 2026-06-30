@@ -115,6 +115,31 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).not.toContain("Active provider: First Provider");
   });
 
+  it("disconnects back to Manual Mode without deleting planning history", async () => {
+    const wrapper = mount(AppShell);
+
+    await createGoal(wrapper, "Keep existing planning history");
+    await clickButton(wrapper, "Calendar");
+    await createEvent(wrapper, {
+      title: "Existing event",
+      date: "2026-07-05",
+      startTime: "15:00",
+      endTime: "16:00"
+    });
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await clickButton(wrapper, "Disconnect Provider");
+
+    expect(wrapper.text()).toContain("Manual Mode");
+    expect(wrapper.text()).not.toContain("AI Provider connected");
+
+    await clickButton(wrapper, "Goals");
+    expect(wrapper.text()).toContain("Keep existing planning history");
+
+    await clickButton(wrapper, "Calendar");
+    expect(wrapper.text()).toContain("Existing event");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 
@@ -434,6 +459,17 @@ async function createGoal(wrapper: ReturnType<typeof mount>, title: string) {
   await clickButton(wrapper, "Goals");
   await wrapper.get("input[aria-label='Goal title']").setValue(title);
   await clickButton(wrapper, "Create Goal");
+}
+
+async function connectFakeProvider(
+  wrapper: ReturnType<typeof mount>,
+  providerName: string,
+  credential: string
+) {
+  await clickButton(wrapper, "Onboarding");
+  await wrapper.get("input[aria-label='Provider name']").setValue(providerName);
+  await wrapper.get("input[aria-label='Provider Credential']").setValue(credential);
+  await clickButton(wrapper, "Run Provider Connection Test");
 }
 
 async function addTask(
