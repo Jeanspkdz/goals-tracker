@@ -1,6 +1,9 @@
 node_modules/
 dist/
+.nuxt/
+.output/
 *.log
+_tmp_*
 .env
 .env.*
 !.env.example

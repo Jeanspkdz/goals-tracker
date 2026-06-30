@@ -11,3 +11,7 @@ Default five-label vocabulary (needs-triage, needs-info, ready-for-agent, ready-
 ### Domain docs
 
 Single-context layout — one CONTEXT.md + docs/adr/ at the repo root. See `docs/agents/domain.md`.
+
+### Package manager
+
+Use PNPM for all dependency installation and package scripts. Do not create or commit npm or Yarn lockfiles.

@@ -3,28 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "preview": "vite preview"
+  "packageManager": "pnpm@11.1.1",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=11.1.1"
   },
-  "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "lucide-react": "latest"
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "test": "nuxt prepare && vitest run",
+    "test:watch": "nuxt prepare && vitest",
+    "preview": "nuxt preview"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "latest",
-    "@testing-library/react": "latest",
-    "@testing-library/user-event": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "jsdom": "latest",
-    "vitest": "latest"
+    "@vitejs/plugin-vue": "6.0.7",
+    "@vue/test-utils": "2.4.11",
+    "happy-dom": "20.10.6",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  },
+  "dependencies": {
+    "@lucide/vue": "1.21.0",
+    "nuxt": "4.4.8",
+    "vue": "3.5.39"
   }
 }

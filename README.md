@@ -7,18 +7,18 @@ Goals Tracker is an AI-assisted personal planning app for turning specific goals
 Install dependencies:
 
 ```sh
-npm install
+pnpm install
 ```
 
 Run the local app:
 
 ```sh
-npm run dev
+pnpm dev
 ```
 
 Verify the app shell:
 
 ```sh
-npm test
-npm run build
+pnpm test
+pnpm build
 ```
