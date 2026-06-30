@@ -277,6 +277,31 @@ describe("Goals Tracker app shell", () => {
     );
     expect(wrapper.text()).toContain("Not a Lesson Suggestion");
   });
+
+  it("prevents manual Scheduled Task edits that create overlaps", async () => {
+    const wrapper = mount(AppShell);
+
+    await addScheduledTask(wrapper, {
+      title: "Write Calendar UI",
+      priority: "High",
+      startTime: "09:00",
+      endTime: "10:00"
+    });
+    await addScheduledTask(wrapper, {
+      title: "Review Calendar UI",
+      priority: "Medium",
+      startTime: "10:30",
+      endTime: "11:00"
+    });
+
+    await wrapper
+      .get("input[aria-label='Start time for Review Calendar UI']")
+      .setValue("09:30");
+
+    expect(wrapper.text()).toContain("Scheduled Tasks cannot overlap.");
+    expect(wrapper.get("input[aria-label='Start time for Review Calendar UI']").element)
+      .toHaveProperty("value", "10:30");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

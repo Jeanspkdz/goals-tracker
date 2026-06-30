@@ -296,6 +296,27 @@ function addScheduledTask() {
   };
 }
 
+function updateScheduledTaskTime(
+  task: ScheduledTask,
+  field: "startTime" | "endTime",
+  value: string
+) {
+  const previousValue = task[field];
+  task[field] = value;
+
+  if (
+    scheduledTasks.value.some(
+      (candidate) => candidate.id !== task.id && timeBlocksOverlap(candidate, task)
+    )
+  ) {
+    task[field] = previousValue;
+    scheduledTaskError.value = "Scheduled Tasks cannot overlap.";
+    return;
+  }
+
+  scheduledTaskError.value = "";
+}
+
 function timeBlocksOverlap(
   first: { startTime: string; endTime: string },
   second: { startTime: string; endTime: string }
@@ -499,6 +520,39 @@ function taskPlanningLabel(task: Task) {
                 {{ task.startTime }}-{{ task.endTime }} ·
                 {{ task.priority }} Priority
               </p>
+            </div>
+            <div class="task-form-grid">
+              <label>
+                Start time for {{ task.title }}
+                <input
+                  :aria-label="`Start time for ${task.title}`"
+                  :value="task.startTime"
+                  type="time"
+                  @change="
+                    updateScheduledTaskTime(
+                      task,
+                      'startTime',
+                      ($event.target as HTMLInputElement).value
+                    )
+                  "
+                />
+              </label>
+
+              <label>
+                End time for {{ task.title }}
+                <input
+                  :aria-label="`End time for ${task.title}`"
+                  :value="task.endTime"
+                  type="time"
+                  @change="
+                    updateScheduledTaskTime(
+                      task,
+                      'endTime',
+                      ($event.target as HTMLInputElement).value
+                    )
+                  "
+                />
+              </label>
             </div>
           </li>
         </ul>
