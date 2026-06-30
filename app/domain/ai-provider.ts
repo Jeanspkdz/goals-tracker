@@ -81,6 +81,43 @@ export function createFakeAiProviderAdapter({
       };
     },
     async generateStructuredText(input) {
+      if (input.schemaName === "goal-suggestions") {
+        return {
+          schemaName: input.schemaName,
+          data: {
+            suggestions: [
+              {
+                id: "fake-goal-suggestion-1",
+                goalText: "Ship a Nuxt goals tracker onboarding flow",
+                progressFormat: "Milestones completed",
+                schedulePattern: "3 focus blocks per week",
+                deadlineSuggestion: "2026-07-31",
+                taskBreakdown: [
+                  {
+                    title: "Build provider setup UI",
+                    priority: "High",
+                    effort: "Focus",
+                    deadline: "2026-07-10"
+                  },
+                  {
+                    title: "Write Goal Prompt acceptance tests",
+                    priority: "Medium",
+                    effort: "Focus",
+                    deadline: "2026-07-17"
+                  },
+                  {
+                    title: "Polish accepted Goal package display",
+                    priority: "Medium",
+                    effort: "Light",
+                    deadline: "2026-07-24"
+                  }
+                ]
+              }
+            ]
+          }
+        };
+      }
+
       return {
         schemaName: input.schemaName,
         data: {

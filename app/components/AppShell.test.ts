@@ -140,6 +140,39 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Existing event");
   });
 
+  it("accepts a fake AI Goal Suggestion into an Active Goal package", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+    await clickButton(wrapper, "Goals");
+    await wrapper
+      .get("textarea[aria-label='Goal Prompt']")
+      .setValue("I want to get better at Vue and Nuxt");
+    await clickButton(wrapper, "Generate Goal Suggestions");
+
+    expect(wrapper.text()).toContain("Goal Suggestions");
+    expect(wrapper.text()).toContain("Ship a Nuxt goals tracker onboarding flow");
+    expect(wrapper.text()).toContain("Progress Format: Milestones completed");
+    expect(wrapper.text()).toContain("Schedule Pattern: 3 focus blocks per week");
+    expect(wrapper.text()).toContain("Suggested deadline: 2026-07-31");
+    expect(wrapper.text()).toContain("Build provider setup UI");
+
+    await clickButton(
+      wrapper,
+      "Accept Goal Suggestion Ship a Nuxt goals tracker onboarding flow"
+    );
+
+    expect(wrapper.text()).toContain("Active Goal created from Goal Suggestion.");
+    expect(wrapper.text()).toContain("Ship a Nuxt goals tracker onboarding flow");
+    expect(wrapper.text()).toContain("Goal Progress: 0 of 3 Tasks completed");
+    expect(wrapper.text()).toContain("Milestones completed");
+    expect(wrapper.text()).toContain("3 focus blocks per week");
+    expect(wrapper.text()).toContain("Deadline 2026-07-31");
+    expect(wrapper.text()).toContain("Build provider setup UI");
+    expect(wrapper.text()).toContain("High Priority");
+    expect(wrapper.text()).toContain("Focus Effort");
+  });
+
   it("lets the user create a manual Goal with one Task and see Goal Progress", async () => {
     const wrapper = mount(AppShell);
 

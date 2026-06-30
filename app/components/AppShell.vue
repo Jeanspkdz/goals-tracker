@@ -37,6 +37,9 @@ type Goal = {
   id: number;
   title: string;
   status: GoalStatus;
+  progressFormat?: string;
+  schedulePattern?: string;
+  deadlineSuggestion?: string;
   completionConfirmed: boolean;
   completionError: string;
   tasks: Task[];
@@ -88,6 +91,30 @@ type ProviderDraft = {
 type ActiveProvider = {
   providerName: string;
   capabilities: ProviderCapability[];
+};
+
+type GoalSuggestionTask = {
+  title: string;
+  priority: TaskPriority;
+  deadline: string;
+  effort: TaskEffort;
+};
+
+type GoalSuggestion = {
+  id: string;
+  goalText: string;
+  progressFormat: string;
+  taskBreakdown: GoalSuggestionTask[];
+  schedulePattern: string;
+  deadlineSuggestion: string;
+};
+
+type AiSuggestionHistoryRecord = {
+  id: number;
+  providerName: string;
+  suggestionKind: "goal";
+  outcome: "accepted" | "rejected";
+  structuredSuggestion: GoalSuggestion;
 };
 
 type SurfaceId =
@@ -209,6 +236,11 @@ const providerDraft = ref<ProviderDraft>({
 });
 const activeProvider = ref<ActiveProvider | null>(null);
 const providerConnectionError = ref("");
+const goalPrompt = ref("");
+const goalSuggestions = ref<GoalSuggestion[]>([]);
+const goalSuggestionError = ref("");
+const goalSuggestionStatus = ref("");
+const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -252,6 +284,89 @@ function createGoal() {
     tasks: []
   });
   goalTitle.value = "";
+}
+
+async function generateGoalSuggestions() {
+  const prompt = goalPrompt.value.trim();
+
+  if (!activeProvider.value) {
+    goalSuggestionError.value = "Connect an AI Provider before generating Goal Suggestions.";
+    goalSuggestionStatus.value = "";
+    return;
+  }
+
+  if (!prompt) {
+    return;
+  }
+
+  const adapter = createFakeAiProviderAdapter({ mode: "success" });
+  const result = await adapter.generateStructuredText({
+    instruction: prompt,
+    schemaName: "goal-suggestions"
+  });
+
+  goalSuggestions.value = parseGoalSuggestions(result.data);
+  goalSuggestionError.value = "";
+  goalSuggestionStatus.value = "";
+}
+
+function acceptGoalSuggestion(suggestion: GoalSuggestion) {
+  goals.value.push({
+    id: Date.now(),
+    title: suggestion.goalText,
+    status: "Active",
+    progressFormat: suggestion.progressFormat,
+    schedulePattern: suggestion.schedulePattern,
+    deadlineSuggestion: suggestion.deadlineSuggestion,
+    completionConfirmed: false,
+    completionError: "",
+    tasks: suggestion.taskBreakdown.map((task, index) => ({
+      id: Date.now() + index + 1,
+      title: task.title,
+      priority: task.priority,
+      deadline: task.deadline,
+      effort: task.effort,
+      status: "Planned"
+    }))
+  });
+
+  aiSuggestionHistory.value.push({
+    id: Date.now(),
+    providerName: activeProvider.value?.providerName ?? "Unknown provider",
+    suggestionKind: "goal",
+    outcome: "accepted",
+    structuredSuggestion: suggestion
+  });
+  goalSuggestions.value = goalSuggestions.value.filter(
+    (candidate) => candidate.id !== suggestion.id
+  );
+  goalSuggestionStatus.value = "Active Goal created from Goal Suggestion.";
+}
+
+function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
+  const suggestions = data.suggestions;
+
+  if (!Array.isArray(suggestions)) {
+    return [];
+  }
+
+  return suggestions.filter(isGoalSuggestion);
+}
+
+function isGoalSuggestion(value: unknown): value is GoalSuggestion {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const suggestion = value as GoalSuggestion;
+  return (
+    typeof suggestion.id === "string" &&
+    typeof suggestion.goalText === "string" &&
+    typeof suggestion.progressFormat === "string" &&
+    Array.isArray(suggestion.taskBreakdown) &&
+    typeof suggestion.schedulePattern === "string" &&
+    typeof suggestion.deadlineSuggestion === "string"
+  );
 }
 
 async function runProviderConnectionTest() {
@@ -793,6 +908,62 @@ function taskPlanningLabel(task: Task) {
           Progress from completed Tasks.
         </p>
 
+        <section class="form-section" aria-label="Goal Prompt">
+          <h3>Goal Prompt</h3>
+          <label for="goal-prompt">Describe the goal you want clarified</label>
+          <textarea
+            id="goal-prompt"
+            v-model="goalPrompt"
+            aria-label="Goal Prompt"
+          />
+
+          <button type="button" @click="generateGoalSuggestions">
+            Generate Goal Suggestions
+          </button>
+          <p v-if="goalSuggestionError" class="form-error">
+            {{ goalSuggestionError }}
+          </p>
+          <p v-if="goalSuggestionStatus" class="planning-state">
+            {{ goalSuggestionStatus }}
+          </p>
+        </section>
+
+        <section
+          v-if="goalSuggestions.length > 0"
+          class="form-section"
+          aria-label="Goal Suggestions"
+        >
+          <h3>Goal Suggestions</h3>
+          <ul class="task-list">
+            <li
+              v-for="suggestion in goalSuggestions"
+              :key="suggestion.id"
+              class="task-item"
+            >
+              <div>
+                <strong>{{ suggestion.goalText }}</strong>
+                <p>Progress Format: {{ suggestion.progressFormat }}</p>
+                <p>Schedule Pattern: {{ suggestion.schedulePattern }}</p>
+                <p>Suggested deadline: {{ suggestion.deadlineSuggestion }}</p>
+                <ul>
+                  <li
+                    v-for="task in suggestion.taskBreakdown"
+                    :key="task.title"
+                  >
+                    {{ task.title }} · {{ task.priority }} Priority ·
+                    {{ task.effort }} Effort
+                    <span v-if="task.deadline"> · Deadline {{ task.deadline }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button type="button" @click="acceptGoalSuggestion(suggestion)">
+                Accept Goal Suggestion {{ suggestion.goalText }}
+              </button>
+            </li>
+          </ul>
+        </section>
+
         <section class="form-section" aria-label="Create Goal">
           <label for="goal-title">Goal title</label>
           <div class="inline-form">
@@ -819,6 +990,15 @@ function taskPlanningLabel(task: Task) {
                 <p>
                   Goal Progress: {{ completedTaskCount(goal) }} of
                   {{ goal.tasks.length }} Tasks completed
+                </p>
+                <p v-if="goal.progressFormat">
+                  Progress Format: {{ goal.progressFormat }}
+                </p>
+                <p v-if="goal.schedulePattern">
+                  Schedule Pattern: {{ goal.schedulePattern }}
+                </p>
+                <p v-if="goal.deadlineSuggestion">
+                  Deadline {{ goal.deadlineSuggestion }}
                 </p>
               </div>
               <span class="status-pill">{{ goal.status }}</span>
