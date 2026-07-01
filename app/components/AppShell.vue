@@ -279,6 +279,7 @@ const dailyReviewStatuses = ref<Record<string, ReviewCompletionStatus>>({});
 const incompleteReasons = ref<Record<string, IncompleteReason | "">>({});
 const incompleteNotes = ref<Record<string, string>>({});
 const confirmedTaskSplits = ref<Record<string, string[]>>({});
+const unblockTasks = ref<Record<string, string>>({});
 const dailyCapacity = ref<DailyCapacity | "">("");
 const dailyReviewError = ref("");
 const dailyReviewCompleted = ref(false);
@@ -576,6 +577,10 @@ function proposedSplitFor(task: ScheduleSuggestionTask) {
 
 function confirmTaskSplit(task: ScheduleSuggestionTask) {
   confirmedTaskSplits.value[task.title] = proposedSplitFor(task);
+}
+
+function createUnblockTask(task: ScheduleSuggestionTask) {
+  unblockTasks.value[task.title] = `Unblock ${task.title}`;
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -1565,6 +1570,20 @@ function taskPlanningLabel(task: Task) {
                     Task Split confirmed
                   </p>
                 </section>
+                <section
+                  v-if="incompleteReasons[task.title] === 'Blocked'"
+                  class="form-section"
+                  :aria-label="`Unblock Task for ${task.title}`"
+                >
+                  <h4>Unblock Task</h4>
+                  <p>Unblock {{ task.title }}</p>
+                  <button type="button" @click="createUnblockTask(task)">
+                    Create Unblock Task for {{ task.title }}
+                  </button>
+                  <p v-if="unblockTasks[task.title]" class="planning-state">
+                    {{ task.title }} excluded from future Schedule Suggestions until unblocked
+                  </p>
+                </section>
               </div>
             </li>
           </ul>
@@ -1618,6 +1637,10 @@ function taskPlanningLabel(task: Task) {
                 :key="splitTask"
               >
                 · Split Task: {{ splitTask }}
+              </span>
+              <span v-if="unblockTasks[task.title]">
+                · Unblock Task: {{ unblockTasks[task.title] }}
+                · {{ task.title }} excluded from future Schedule Suggestions until unblocked
               </span>
             </p>
           </section>
