@@ -283,6 +283,7 @@ const unblockTasks = ref<Record<string, string>>({});
 const dailyCapacity = ref<DailyCapacity | "">("");
 const dailyReviewError = ref("");
 const dailyReviewCompleted = ref(false);
+const dailyReviewScheduleStatus = ref("");
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -560,6 +561,17 @@ function completeDailyReview() {
 
   dailyReviewCompleted.value = true;
   dailyReviewError.value = "";
+}
+
+async function generateScheduleSuggestionFromDailyReview() {
+  await generateTomorrowScheduleSuggestion();
+  dailyReviewScheduleStatus.value =
+    "Schedule Suggestion generated from Daily Review.";
+}
+
+function skipScheduleSuggestionForNow() {
+  dailyReviewScheduleStatus.value =
+    "Tomorrow's Schedule Suggestion skipped for now.";
 }
 
 function incompleteReasonFor(task: ScheduleSuggestionTask) {
@@ -1654,6 +1666,29 @@ function taskPlanningLabel(task: Task) {
                 · {{ task.title }} excluded from future Schedule Suggestions until unblocked
               </span>
             </p>
+            <button type="button" @click="generateScheduleSuggestionFromDailyReview">
+              Generate Schedule Suggestion from Daily Review
+            </button>
+            <button type="button" @click="skipScheduleSuggestionForNow">
+              Skip Schedule Suggestion for now
+            </button>
+            <p v-if="dailyReviewScheduleStatus" class="planning-state">
+              {{ dailyReviewScheduleStatus }}
+            </p>
+            <section
+              v-if="scheduleSuggestions.length > 0"
+              class="form-section"
+              aria-label="Daily Review Schedule Suggestions"
+            >
+              <h4>Schedule Suggestions</h4>
+              <p
+                v-for="suggestion in scheduleSuggestions"
+                :key="suggestion.id"
+                class="planning-state"
+              >
+                Suggestion date: {{ suggestion.date }}
+              </p>
+            </section>
           </section>
         </section>
 

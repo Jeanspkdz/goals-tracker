@@ -744,6 +744,26 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Skipped");
     expect(wrapper.text()).toContain("Task planning: Out of future planning");
   });
+
+  it("can generate or skip tomorrow's Schedule Suggestion after Daily Review", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Completed");
+    await clickButton(wrapper, "Daily Capacity High");
+    await clickButton(wrapper, "Complete Daily Review");
+    await clickButton(wrapper, "Generate Schedule Suggestion from Daily Review");
+
+    expect(wrapper.text()).toContain("Schedule Suggestion generated from Daily Review.");
+    expect(wrapper.text()).toContain("Schedule Suggestions");
+
+    await clickButton(wrapper, "Skip Schedule Suggestion for now");
+
+    expect(wrapper.text()).toContain("Tomorrow's Schedule Suggestion skipped for now.");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
