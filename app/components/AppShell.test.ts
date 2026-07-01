@@ -678,6 +678,31 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Incomplete Reason: Interrupted");
     expect(wrapper.text()).toContain("A real-world interruption displaced the block.");
   });
+
+  it("proposes and confirms a Task Split for Too Large incomplete work", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Incomplete");
+    await wrapper
+      .get("select[aria-label='Incomplete Reason for Draft the schedule suggestion flow']")
+      .setValue("Too Large");
+
+    expect(wrapper.text()).toContain("Proposed Task Split");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow part 1");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow part 2");
+
+    await clickButton(wrapper, "Confirm Task Split for Draft the schedule suggestion flow");
+    await clickButton(wrapper, "Daily Capacity Normal");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Task Split confirmed");
+    expect(wrapper.text()).toContain("Split Task: Draft the schedule suggestion flow part 1");
+    expect(wrapper.text()).toContain("Split Task: Draft the schedule suggestion flow part 2");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {

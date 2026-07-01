@@ -278,6 +278,7 @@ const acceptedDailyPlan = ref<DailyPlan | null>(null);
 const dailyReviewStatuses = ref<Record<string, ReviewCompletionStatus>>({});
 const incompleteReasons = ref<Record<string, IncompleteReason | "">>({});
 const incompleteNotes = ref<Record<string, string>>({});
+const confirmedTaskSplits = ref<Record<string, string[]>>({});
 const dailyCapacity = ref<DailyCapacity | "">("");
 const dailyReviewError = ref("");
 const dailyReviewCompleted = ref(false);
@@ -567,6 +568,14 @@ function incompleteReasonFor(task: ScheduleSuggestionTask) {
 
 function setIncompleteReason(task: ScheduleSuggestionTask, reason: IncompleteReason) {
   incompleteReasons.value[task.title] = reason;
+}
+
+function proposedSplitFor(task: ScheduleSuggestionTask) {
+  return [`${task.title} part 1`, `${task.title} part 2`];
+}
+
+function confirmTaskSplit(task: ScheduleSuggestionTask) {
+  confirmedTaskSplits.value[task.title] = proposedSplitFor(task);
 }
 
 function parseGoalSuggestions(data: Record<string, unknown>): GoalSuggestion[] {
@@ -1532,6 +1541,30 @@ function taskPlanningLabel(task: Task) {
                     :aria-label="`Incomplete note for ${task.title}`"
                   />
                 </label>
+                <section
+                  v-if="incompleteReasons[task.title] === 'Too Large'"
+                  class="form-section"
+                  :aria-label="`Proposed Task Split for ${task.title}`"
+                >
+                  <h4>Proposed Task Split</h4>
+                  <ul>
+                    <li
+                      v-for="splitTask in proposedSplitFor(task)"
+                      :key="splitTask"
+                    >
+                      {{ splitTask }}
+                    </li>
+                  </ul>
+                  <button type="button" @click="confirmTaskSplit(task)">
+                    Confirm Task Split for {{ task.title }}
+                  </button>
+                  <p
+                    v-if="confirmedTaskSplits[task.title]"
+                    class="planning-state"
+                  >
+                    Task Split confirmed
+                  </p>
+                </section>
               </div>
             </li>
           </ul>
@@ -1576,6 +1609,15 @@ function taskPlanningLabel(task: Task) {
               </span>
               <span v-if="incompleteNotes[task.title]">
                 · {{ incompleteNotes[task.title] }}
+              </span>
+              <span v-if="confirmedTaskSplits[task.title]">
+                · Task Split confirmed
+              </span>
+              <span
+                v-for="splitTask in confirmedTaskSplits[task.title] ?? []"
+                :key="splitTask"
+              >
+                · Split Task: {{ splitTask }}
               </span>
             </p>
           </section>
