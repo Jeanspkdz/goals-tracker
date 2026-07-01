@@ -720,6 +720,92 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).not.toContain("Planning Feedback: Evidence rejection");
   });
 
+  it("accepts an Unplanned Completion Suggestion as a Goal-attached Unscheduled Completed Task", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper, {
+      evidenceImportSupport: "supported"
+    });
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+    await clickButton(wrapper, "Import Conversation Evidence");
+
+    expect(wrapper.text()).toContain("Unplanned Completion Suggestions");
+    expect(wrapper.text()).toContain("Document provider integration notes");
+    expect(wrapper.find("input[aria-label='Edit Document provider integration notes']").exists())
+      .toBe(false);
+
+    await clickButton(wrapper, "Accept Unplanned Completion Document provider integration notes");
+
+    expect(wrapper.text()).toContain(
+      "Goal attachment and Daily Plan reconciliation are required."
+    );
+
+    await wrapper
+      .get("select[aria-label='Attach Document provider integration notes to Goal']")
+      .setValue("Ship schedule suggestions");
+    await wrapper
+      .get("textarea[aria-label='Daily Plan reconciliation for Document provider integration notes']")
+      .setValue("I finished this outside the planned block after the review notes.");
+    await clickButton(wrapper, "Accept Unplanned Completion Document provider integration notes");
+
+    expect(wrapper.text()).toContain(
+      "Unplanned Completion accepted as an Unscheduled Completed Task."
+    );
+
+    await clickButton(wrapper, "Goals");
+    expect(goalCardText(wrapper, "Ship schedule suggestions")).toContain(
+      "Goal Progress: 1 of 2 Tasks completed"
+    );
+    expect(goalCardText(wrapper, "Ship schedule suggestions")).toContain(
+      "Document provider integration notes"
+    );
+    expect(goalCardText(wrapper, "Ship schedule suggestions")).toContain(
+      "Unscheduled Completed Task"
+    );
+  });
+
+  it("rejects wrong Unplanned Completion Suggestions without storing them long-term", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper, {
+      evidenceImportSupport: "supported"
+    });
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+    await clickButton(wrapper, "Import Conversation Evidence");
+    await clickButton(wrapper, "Reject Unplanned Completion Document provider integration notes");
+
+    expect(wrapper.text()).toContain("Unplanned Completion Suggestion rejected.");
+    expect(wrapper.text()).not.toContain("Document provider integration notes");
+  });
+
+  it("lets the user manually add rare Unscheduled Completed Tasks and warns in Weekly Review after more than three", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+
+    for (const title of [
+      "Review provider docs",
+      "Sketch evidence parser",
+      "Clean schedule examples",
+      "Write planning notes"
+    ]) {
+      await addManualUnscheduledCompletedTask(wrapper, title);
+    }
+
+    await clickButton(wrapper, "Goals");
+    expect(goalCardText(wrapper, "Ship schedule suggestions")).toContain(
+      "Goal Progress: 4 of 5 Tasks completed"
+    );
+
+    await clickButton(wrapper, "Weekly Review");
+    expect(wrapper.text()).toContain(
+      "Gentle warning: 4 Unscheduled Completed Tasks this week."
+    );
+  });
+
   it("requires an Incomplete Reason and records an optional note", async () => {
     const wrapper = mount(AppShell);
 
@@ -945,6 +1031,22 @@ async function createEvent(
     .get("input[aria-label='Event end time']")
     .setValue(event.endTime);
   await clickButton(wrapper, "Create Event");
+}
+
+async function addManualUnscheduledCompletedTask(
+  wrapper: ReturnType<typeof mount>,
+  title: string
+) {
+  await wrapper
+    .get("input[aria-label='Manual Unscheduled Completed Task title']")
+    .setValue(title);
+  await wrapper
+    .get("select[aria-label='Attach Manual Unscheduled Completed Task to Goal']")
+    .setValue("Ship schedule suggestions");
+  await wrapper
+    .get("textarea[aria-label='Manual Daily Plan reconciliation']")
+    .setValue(`${title} was useful progress outside the accepted plan.`);
+  await clickButton(wrapper, "Add Manual Unscheduled Completed Task");
 }
 
 function tomorrowDate() {

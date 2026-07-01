@@ -39,6 +39,8 @@ type Task = {
   deadline: string;
   effort: TaskEffort;
   status: TaskStatus;
+  kind?: "Unscheduled Completed Task";
+  reconciliation?: string;
 };
 
 type Goal = {
@@ -150,6 +152,11 @@ type EvidenceCompletionSuggestion = {
   taskTitle: string;
   confidence: "High" | "Medium" | "Low";
   rationale: string;
+};
+
+type UnplannedCompletionSuggestion = {
+  id: string;
+  title: string;
 };
 
 type SurfaceId =
@@ -296,6 +303,13 @@ const evidenceImportEnabled = ref(false);
 const evidenceImportSkipped = ref(false);
 const evidenceImportStatus = ref("");
 const evidenceCompletionSuggestions = ref<EvidenceCompletionSuggestion[]>([]);
+const unplannedCompletionSuggestions = ref<UnplannedCompletionSuggestion[]>([]);
+const unplannedCompletionGoalSelections = ref<Record<string, string>>({});
+const unplannedCompletionReconciliations = ref<Record<string, string>>({});
+const unplannedCompletionStatus = ref("");
+const manualUnscheduledCompletedTaskTitle = ref("");
+const manualUnscheduledCompletedTaskGoalId = ref("");
+const manualUnscheduledCompletedTaskReconciliation = ref("");
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -340,6 +354,11 @@ const canRunEvidenceImport = computed(
     evidenceImportEnabled.value &&
     !evidenceImportSkipped.value &&
     evidenceImportCapability.value?.supported === true
+);
+const unscheduledCompletedTaskCount = computed(() =>
+  goals.value
+    .flatMap((goal) => goal.tasks)
+    .filter((task) => task.kind === "Unscheduled Completed Task").length
 );
 
 function createGoal() {
@@ -614,12 +633,19 @@ async function importConversationEvidence() {
         }
       ]
     : [];
+  unplannedCompletionSuggestions.value = [
+    {
+      id: "fake-unplanned-completion-1",
+      title: "Document provider integration notes"
+    }
+  ];
   evidenceImportStatus.value = "Evidence Import completed.";
 }
 
 function skipEvidenceImportForDailyReview() {
   evidenceImportSkipped.value = true;
   evidenceCompletionSuggestions.value = [];
+  unplannedCompletionSuggestions.value = [];
   evidenceImportStatus.value = "Evidence Import skipped for this Daily Review.";
 }
 
@@ -635,6 +661,70 @@ function acceptAllEvidenceCompletions() {
 function rejectEvidenceCompletions() {
   evidenceCompletionSuggestions.value = [];
   evidenceImportStatus.value = "Evidence completions rejected.";
+}
+
+function acceptUnplannedCompletion(suggestion: UnplannedCompletionSuggestion) {
+  const goalTitle = unplannedCompletionGoalSelections.value[suggestion.id];
+  const reconciliation =
+    unplannedCompletionReconciliations.value[suggestion.id]?.trim() ?? "";
+  const goal = goals.value.find((candidate) => candidate.title === goalTitle);
+
+  if (!goal || !reconciliation) {
+    unplannedCompletionStatus.value =
+      "Goal attachment and Daily Plan reconciliation are required.";
+    return;
+  }
+
+  addUnscheduledCompletedTask(goal, suggestion.title, reconciliation);
+  unplannedCompletionSuggestions.value = unplannedCompletionSuggestions.value.filter(
+    (candidate) => candidate.id !== suggestion.id
+  );
+  unplannedCompletionStatus.value =
+    "Unplanned Completion accepted as an Unscheduled Completed Task.";
+}
+
+function rejectUnplannedCompletion(suggestion: UnplannedCompletionSuggestion) {
+  unplannedCompletionSuggestions.value = unplannedCompletionSuggestions.value.filter(
+    (candidate) => candidate.id !== suggestion.id
+  );
+  unplannedCompletionStatus.value = "Unplanned Completion Suggestion rejected.";
+}
+
+function addManualUnscheduledCompletedTask() {
+  const title = manualUnscheduledCompletedTaskTitle.value.trim();
+  const goalTitle = manualUnscheduledCompletedTaskGoalId.value;
+  const reconciliation = manualUnscheduledCompletedTaskReconciliation.value.trim();
+  const goal = goals.value.find((candidate) => candidate.title === goalTitle);
+
+  if (!title || !goal || !reconciliation) {
+    unplannedCompletionStatus.value =
+      "Goal attachment and Daily Plan reconciliation are required.";
+    return;
+  }
+
+  addUnscheduledCompletedTask(goal, title, reconciliation);
+  manualUnscheduledCompletedTaskTitle.value = "";
+  manualUnscheduledCompletedTaskGoalId.value = "";
+  manualUnscheduledCompletedTaskReconciliation.value = "";
+  unplannedCompletionStatus.value =
+    "Manual Unscheduled Completed Task added.";
+}
+
+function addUnscheduledCompletedTask(
+  goal: Goal,
+  title: string,
+  reconciliation: string
+) {
+  goal.tasks.push({
+    id: Date.now() + goal.tasks.length + 1,
+    title,
+    priority: "Medium",
+    deadline: "",
+    effort: "Light",
+    status: "Completed",
+    kind: "Unscheduled Completed Task",
+    reconciliation
+  });
 }
 
 async function generateScheduleSuggestionFromDailyReview() {
@@ -1568,6 +1658,12 @@ function taskPlanningLabel(task: Task) {
                   <span v-if="task.deadline"> · Deadline {{ task.deadline }}</span>
                 </p>
                 <p class="planning-state">{{ taskPlanningLabel(task) }}</p>
+                <p v-if="task.kind" class="planning-state">
+                  {{ task.kind }}
+                  <span v-if="task.reconciliation">
+                    · {{ task.reconciliation }}
+                  </span>
+                </p>
               </div>
                 <label>
                   Status for {{ task.title }}
@@ -1664,7 +1760,107 @@ function taskPlanningLabel(task: Task) {
                 Reject evidence completions
               </button>
             </section>
+
+            <section
+              v-if="unplannedCompletionSuggestions.length > 0"
+              class="form-section"
+              aria-label="Unplanned Completion Suggestions"
+            >
+              <h4>Unplanned Completion Suggestions</h4>
+              <ul class="task-list">
+                <li
+                  v-for="suggestion in unplannedCompletionSuggestions"
+                  :key="suggestion.id"
+                  class="task-item"
+                >
+                  <div>
+                    <strong>{{ suggestion.title }}</strong>
+                    <p class="planning-state">
+                      AI-normalized title; attach to a Goal before storing.
+                    </p>
+                  </div>
+                  <label>
+                    Attach {{ suggestion.title }} to Goal
+                    <select
+                      v-model="unplannedCompletionGoalSelections[suggestion.id]"
+                      :aria-label="`Attach ${suggestion.title} to Goal`"
+                    >
+                      <option value="">Choose Goal</option>
+                      <option
+                        v-for="goal in goals"
+                        :key="goal.id"
+                        :value="goal.title"
+                      >
+                        {{ goal.title }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    Daily Plan reconciliation for {{ suggestion.title }}
+                    <textarea
+                      v-model="unplannedCompletionReconciliations[suggestion.id]"
+                      :aria-label="`Daily Plan reconciliation for ${suggestion.title}`"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    @click="acceptUnplannedCompletion(suggestion)"
+                  >
+                    Accept Unplanned Completion {{ suggestion.title }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="rejectUnplannedCompletion(suggestion)"
+                  >
+                    Reject Unplanned Completion {{ suggestion.title }}
+                  </button>
+                </li>
+              </ul>
+            </section>
           </section>
+
+          <section class="form-section" aria-label="Manual Unscheduled Completed Task">
+            <h3>Manual Unscheduled Completed Task</h3>
+            <label for="manual-unscheduled-completed-task-title">
+              Task title
+            </label>
+            <input
+              id="manual-unscheduled-completed-task-title"
+              v-model="manualUnscheduledCompletedTaskTitle"
+              aria-label="Manual Unscheduled Completed Task title"
+              type="text"
+            />
+            <label>
+              Attach Manual Unscheduled Completed Task to Goal
+              <select
+                v-model="manualUnscheduledCompletedTaskGoalId"
+                aria-label="Attach Manual Unscheduled Completed Task to Goal"
+              >
+                <option value="">Choose Goal</option>
+                <option
+                  v-for="goal in goals"
+                  :key="goal.id"
+                  :value="goal.title"
+                >
+                  {{ goal.title }}
+                </option>
+              </select>
+            </label>
+            <label>
+              Manual Daily Plan reconciliation
+              <textarea
+                v-model="manualUnscheduledCompletedTaskReconciliation"
+                aria-label="Manual Daily Plan reconciliation"
+              />
+            </label>
+            <button type="button" @click="addManualUnscheduledCompletedTask">
+              Add Manual Unscheduled Completed Task
+            </button>
+          </section>
+
+          <p v-if="unplannedCompletionStatus" class="planning-state">
+            {{ unplannedCompletionStatus }}
+          </p>
 
           <ul class="task-list">
             <li
@@ -1854,6 +2050,21 @@ function taskPlanningLabel(task: Task) {
           <h3>No Daily Plan to review</h3>
           <p>Accept a Daily Plan before starting Daily Review.</p>
         </div>
+      </div>
+
+      <div v-else-if="activeSurface === 'weekly-review'" class="surface-content">
+        <p>{{ surface.description }}</p>
+
+        <section class="form-section" aria-label="Weekly Review Summary">
+          <h3>Weekly Review Summary</h3>
+          <p class="planning-state">
+            Unscheduled Completed Tasks: {{ unscheduledCompletedTaskCount }}
+          </p>
+          <p v-if="unscheduledCompletedTaskCount > 3" class="form-error">
+            Gentle warning: {{ unscheduledCompletedTaskCount }} Unscheduled
+            Completed Tasks this week.
+          </p>
+        </section>
       </div>
 
       <div v-else-if="activeSurface === 'settings'" class="surface-content">
