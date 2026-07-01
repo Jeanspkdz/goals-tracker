@@ -571,6 +571,12 @@ function setIncompleteReason(task: ScheduleSuggestionTask, reason: IncompleteRea
   incompleteReasons.value[task.title] = reason;
 }
 
+function reviewedTaskStatus(task: ScheduleSuggestionTask) {
+  return incompleteReasons.value[task.title] === "Not Important Anymore"
+    ? "Skipped"
+    : reviewStatusFor(task);
+}
+
 function proposedSplitFor(task: ScheduleSuggestionTask) {
   return [`${task.title} part 1`, `${task.title} part 2`];
 }
@@ -1622,9 +1628,14 @@ function taskPlanningLabel(task: Task) {
               :key="task.title"
               class="planning-state"
             >
-              {{ task.title }}: {{ reviewStatusFor(task) }}
+              {{ task.title }}: {{ reviewedTaskStatus(task) }}
               <span v-if="incompleteReasons[task.title]">
                 · Incomplete Reason: {{ incompleteReasons[task.title] }}
+              </span>
+              <span
+                v-if="incompleteReasons[task.title] === 'Not Important Anymore'"
+              >
+                · Task planning: Out of future planning
               </span>
               <span v-if="incompleteNotes[task.title]">
                 · {{ incompleteNotes[task.title] }}

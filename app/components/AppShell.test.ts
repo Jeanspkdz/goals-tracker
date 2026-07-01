@@ -726,6 +726,24 @@ describe("Goals Tracker app shell", () => {
       "Draft the schedule suggestion flow excluded from future Schedule Suggestions until unblocked"
     );
   });
+
+  it("marks Not Important Anymore tasks as Skipped", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Incomplete");
+    await wrapper
+      .get("select[aria-label='Incomplete Reason for Draft the schedule suggestion flow']")
+      .setValue("Not Important Anymore");
+    await clickButton(wrapper, "Daily Capacity Normal");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Skipped");
+    expect(wrapper.text()).toContain("Task planning: Out of future planning");
+  });
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
