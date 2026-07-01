@@ -806,6 +806,87 @@ describe("Goals Tracker app shell", () => {
     );
   });
 
+  it("shows Weekly Review on the chosen day with progress, task, review, capacity, and unscheduled summaries", async () => {
+    const wrapper = mount(AppShell);
+    const today = currentWeekday();
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await addManualUnscheduledCompletedTask(wrapper, "Review provider docs");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Completed");
+    await clickButton(wrapper, "Daily Capacity High");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    await clickButton(wrapper, "Goals");
+    await wrapper
+      .get("select[aria-label='Status for Draft the schedule suggestion flow']")
+      .setValue("Deferred");
+
+    await clickButton(wrapper, "Weekly Review");
+    await wrapper.get("select[aria-label='Weekly Review day']").setValue(today);
+
+    expect(wrapper.text()).toContain("Weekly Review due today");
+    expect(wrapper.text()).toContain("Goal Progress");
+    expect(wrapper.text()).toContain("Ship schedule suggestions: 1 of 2 Tasks completed");
+    expect(wrapper.text()).toContain("Completed Tasks");
+    expect(wrapper.text()).toContain("Review provider docs");
+    expect(wrapper.text()).toContain("Deferred Tasks");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow");
+    expect(wrapper.text()).toContain("Missed Daily Reviews: 0");
+    expect(wrapper.text()).toContain("Capacity patterns: Most recent Daily Capacity was High.");
+    expect(wrapper.text()).toContain("Unscheduled Completed Tasks: 1");
+
+    await clickButton(wrapper, "Complete Weekly Review");
+
+    expect(wrapper.text()).toContain("Weekly Review completed.");
+  });
+
+  it("keeps Lesson Suggestions only in Weekly Review and lets the user approve and pin them", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper
+      .get("select[aria-label='Completion status for Draft the schedule suggestion flow']")
+      .setValue("Incomplete");
+    await wrapper
+      .get("select[aria-label='Incomplete Reason for Draft the schedule suggestion flow']")
+      .setValue("Interrupted");
+    await clickButton(wrapper, "Daily Capacity Low");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).not.toContain("Lesson Suggestions");
+
+    await clickButton(wrapper, "Weekly Review");
+
+    expect(wrapper.text()).toContain("Lesson Suggestions");
+    expect(wrapper.text()).toContain(
+      "Protect planned work from interruptions before adding more focus tasks."
+    );
+    expect(wrapper.text()).not.toContain(
+      "Daily Capacity was Low is a Lesson Suggestion"
+    );
+
+    await clickButton(
+      wrapper,
+      "Approve Lesson Protect planned work from interruptions before adding more focus tasks."
+    );
+
+    expect(wrapper.text()).toContain("Weekly Lessons");
+    expect(wrapper.text()).toContain(
+      "Protect planned work from interruptions before adding more focus tasks."
+    );
+
+    await clickButton(
+      wrapper,
+      "Pin Lesson Protect planned work from interruptions before adding more focus tasks."
+    );
+
+    expect(wrapper.text()).toContain("Pinned Lesson");
+  });
+
   it("requires an Incomplete Reason and records an optional note", async () => {
     const wrapper = mount(AppShell);
 
@@ -1053,6 +1134,10 @@ function tomorrowDate() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
+}
+
+function currentWeekday() {
+  return new Intl.DateTimeFormat("en", { weekday: "long" }).format(new Date());
 }
 
 async function createAcceptedTomorrowPlan(

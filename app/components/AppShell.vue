@@ -159,6 +159,12 @@ type UnplannedCompletionSuggestion = {
   title: string;
 };
 
+type WeeklyLesson = {
+  id: number;
+  text: string;
+  pinned: boolean;
+};
+
 type SurfaceId =
   | "calendar"
   | "onboarding"
@@ -310,6 +316,21 @@ const unplannedCompletionStatus = ref("");
 const manualUnscheduledCompletedTaskTitle = ref("");
 const manualUnscheduledCompletedTaskGoalId = ref("");
 const manualUnscheduledCompletedTaskReconciliation = ref("");
+const weekDays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday"
+];
+const currentWeekday = new Intl.DateTimeFormat("en", {
+  weekday: "long"
+}).format(new Date());
+const weeklyReviewDay = ref(currentWeekday);
+const weeklyReviewCompleted = ref(false);
+const weeklyLessons = ref<WeeklyLesson[]>([]);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -360,6 +381,49 @@ const unscheduledCompletedTaskCount = computed(() =>
     .flatMap((goal) => goal.tasks)
     .filter((task) => task.kind === "Unscheduled Completed Task").length
 );
+const isWeeklyReviewDue = computed(
+  () => weeklyReviewDay.value === currentWeekday && !weeklyReviewCompleted.value
+);
+const weeklyCompletedTasks = computed(() =>
+  goals.value.flatMap((goal) =>
+    goal.tasks
+      .filter((task) => task.status === "Completed")
+      .map((task) => ({ goal, task }))
+  )
+);
+const weeklyDeferredTasks = computed(() =>
+  goals.value.flatMap((goal) =>
+    goal.tasks
+      .filter((task) => task.status === "Deferred")
+      .map((task) => ({ goal, task }))
+  )
+);
+const missedDailyReviewCount = computed(() => (dailyReviewCompleted.value ? 0 : 1));
+const capacityPatternSummary = computed(() =>
+  dailyCapacity.value
+    ? `Most recent Daily Capacity was ${dailyCapacity.value}.`
+    : "No Daily Capacity recorded yet."
+);
+const lessonSuggestions = computed(() => {
+  const suggestions: string[] = [];
+
+  if (Object.values(incompleteReasons.value).includes("Interrupted")) {
+    suggestions.push(
+      "Protect planned work from interruptions before adding more focus tasks."
+    );
+  }
+
+  if (unscheduledCompletedTaskCount.value > 3) {
+    suggestions.push(
+      "Attach useful extra work to the Daily Plan earlier so the repeatable schedule stays realistic."
+    );
+  }
+
+  return suggestions.filter(
+    (suggestion) =>
+      !weeklyLessons.value.some((lesson) => lesson.text === suggestion)
+  );
+});
 
 function createGoal() {
   const title = goalTitle.value.trim();
@@ -725,6 +789,22 @@ function addUnscheduledCompletedTask(
     kind: "Unscheduled Completed Task",
     reconciliation
   });
+}
+
+function completeWeeklyReview() {
+  weeklyReviewCompleted.value = true;
+}
+
+function approveLessonSuggestion(suggestion: string) {
+  weeklyLessons.value.push({
+    id: Date.now() + weeklyLessons.value.length,
+    text: suggestion,
+    pinned: false
+  });
+}
+
+function pinWeeklyLesson(lesson: WeeklyLesson) {
+  lesson.pinned = true;
 }
 
 async function generateScheduleSuggestionFromDailyReview() {
@@ -2055,8 +2135,68 @@ function taskPlanningLabel(task: Task) {
       <div v-else-if="activeSurface === 'weekly-review'" class="surface-content">
         <p>{{ surface.description }}</p>
 
+        <section class="form-section" aria-label="Weekly Review Settings">
+          <h3>Weekly Review Settings</h3>
+          <label>
+            Weekly Review day
+            <select v-model="weeklyReviewDay" aria-label="Weekly Review day">
+              <option v-for="day in weekDays" :key="day">
+                {{ day }}
+              </option>
+            </select>
+          </label>
+          <p v-if="isWeeklyReviewDue" class="form-error">
+            Weekly Review due today. Overdue until completed.
+          </p>
+          <p v-else-if="weeklyReviewCompleted" class="planning-state">
+            Weekly Review completed.
+          </p>
+        </section>
+
         <section class="form-section" aria-label="Weekly Review Summary">
           <h3>Weekly Review Summary</h3>
+          <section aria-label="Weekly Goal Progress">
+            <h4>Goal Progress</h4>
+            <p v-for="goal in goals" :key="goal.id" class="planning-state">
+              {{ goal.title }}: {{ completedTaskCount(goal) }} of
+              {{ goal.tasks.length }} Tasks completed
+            </p>
+          </section>
+
+          <section aria-label="Weekly Completed Tasks">
+            <h4>Completed Tasks</h4>
+            <p
+              v-for="entry in weeklyCompletedTasks"
+              :key="`${entry.goal.id}-${entry.task.id}`"
+              class="planning-state"
+            >
+              {{ entry.task.title }}
+            </p>
+            <p v-if="weeklyCompletedTasks.length === 0" class="planning-state">
+              No completed Tasks recorded this week.
+            </p>
+          </section>
+
+          <section aria-label="Weekly Deferred Tasks">
+            <h4>Deferred Tasks</h4>
+            <p
+              v-for="entry in weeklyDeferredTasks"
+              :key="`${entry.goal.id}-${entry.task.id}`"
+              class="planning-state"
+            >
+              {{ entry.task.title }}
+            </p>
+            <p v-if="weeklyDeferredTasks.length === 0" class="planning-state">
+              No Deferred Tasks recorded this week.
+            </p>
+          </section>
+
+          <p class="planning-state">
+            Missed Daily Reviews: {{ missedDailyReviewCount }}
+          </p>
+          <p class="planning-state">
+            Capacity patterns: {{ capacityPatternSummary }}
+          </p>
           <p class="planning-state">
             Unscheduled Completed Tasks: {{ unscheduledCompletedTaskCount }}
           </p>
@@ -2065,6 +2205,54 @@ function taskPlanningLabel(task: Task) {
             Completed Tasks this week.
           </p>
         </section>
+
+        <section class="form-section" aria-label="Lesson Suggestions">
+          <h3>Lesson Suggestions</h3>
+          <p v-if="lessonSuggestions.length === 0" class="planning-state">
+            No Lesson Suggestions from recent planning feedback.
+          </p>
+          <ul v-else class="task-list">
+            <li
+              v-for="suggestion in lessonSuggestions"
+              :key="suggestion"
+              class="task-item"
+            >
+              <span>{{ suggestion }}</span>
+              <button
+                type="button"
+                @click="approveLessonSuggestion(suggestion)"
+              >
+                Approve Lesson {{ suggestion }}
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <section class="form-section" aria-label="Weekly Lessons">
+          <h3>Weekly Lessons</h3>
+          <p v-if="weeklyLessons.length === 0" class="planning-state">
+            No Weekly Lessons approved yet.
+          </p>
+          <ul v-else class="task-list">
+            <li
+              v-for="lesson in weeklyLessons"
+              :key="lesson.id"
+              class="task-item"
+            >
+              <span>
+                {{ lesson.text }}
+                <strong v-if="lesson.pinned"> · Pinned Lesson</strong>
+              </span>
+              <button type="button" @click="pinWeeklyLesson(lesson)">
+                Pin Lesson {{ lesson.text }}
+              </button>
+            </li>
+          </ul>
+        </section>
+
+        <button type="button" @click="completeWeeklyReview">
+          Complete Weekly Review
+        </button>
       </div>
 
       <div v-else-if="activeSurface === 'settings'" class="surface-content">
