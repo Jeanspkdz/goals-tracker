@@ -653,6 +653,73 @@ describe("Goals Tracker app shell", () => {
     expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Completed");
   });
 
+  it("imports supported Conversation Evidence before completion confirmation and lets the user accept suggested completions", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper, {
+      evidenceImportSupport: "supported"
+    });
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+
+    expect(wrapper.text().indexOf("Evidence Import")).toBeLessThan(
+      wrapper.text().indexOf("Completion status for Draft the schedule suggestion flow")
+    );
+
+    await clickButton(wrapper, "Import Conversation Evidence");
+
+    expect(wrapper.text()).toContain("Evidence Import completed.");
+    expect(wrapper.text()).toContain("Suggested completed Scheduled Tasks");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow");
+
+    await clickButton(wrapper, "Accept all evidence completions");
+    await clickButton(wrapper, "Daily Capacity Normal");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Evidence completions accepted.");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Completed");
+    expect(wrapper.text()).not.toContain("raw conversation");
+  });
+
+  it("shows unsupported Evidence Import as disabled and lets the user skip it for one Daily Review", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper);
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+
+    expect(wrapper.text()).toContain("Evidence Import disabled:");
+    expect(wrapper.text()).toContain(
+      "Fake Provider does not support conversation import."
+    );
+    expect(buttonByText(wrapper, "Import Conversation Evidence")?.attributes("disabled"))
+      .toBeDefined();
+
+    await clickButton(wrapper, "Skip Evidence Import for this Daily Review");
+
+    expect(wrapper.text()).toContain(
+      "Evidence Import skipped for this Daily Review."
+    );
+  });
+
+  it("rejects imported evidence completions without storing them as Planning Feedback", async () => {
+    const wrapper = mount(AppShell);
+
+    await createAcceptedTomorrowPlan(wrapper, {
+      evidenceImportSupport: "supported"
+    });
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+    await clickButton(wrapper, "Import Conversation Evidence");
+    await clickButton(wrapper, "Reject evidence completions");
+    await clickButton(wrapper, "Daily Capacity Normal");
+    await clickButton(wrapper, "Complete Daily Review");
+
+    expect(wrapper.text()).toContain("Evidence completions rejected.");
+    expect(wrapper.text()).toContain("Draft the schedule suggestion flow: Planned");
+    expect(wrapper.text()).not.toContain("Planning Feedback: Evidence rejection");
+  });
+
   it("requires an Incomplete Reason and records an optional note", async () => {
     const wrapper = mount(AppShell);
 
@@ -767,10 +834,14 @@ describe("Goals Tracker app shell", () => {
 });
 
 async function clickButton(wrapper: ReturnType<typeof mount>, text: string) {
-  const button = wrapper.findAll("button").find((item) => item.text() === text);
+  const button = buttonByText(wrapper, text);
 
   expect(button).toBeDefined();
   await button?.trigger("click");
+}
+
+function buttonByText(wrapper: ReturnType<typeof mount>, text: string) {
+  return wrapper.findAll("button").find((item) => item.text() === text);
 }
 
 async function createGoal(wrapper: ReturnType<typeof mount>, title: string) {
@@ -782,11 +853,17 @@ async function createGoal(wrapper: ReturnType<typeof mount>, title: string) {
 async function connectFakeProvider(
   wrapper: ReturnType<typeof mount>,
   providerName: string,
-  credential: string
+  credential: string,
+  options: { evidenceImportSupport?: "unsupported" | "supported" } = {}
 ) {
   await clickButton(wrapper, "Onboarding");
   await wrapper.get("input[aria-label='Provider name']").setValue(providerName);
   await wrapper.get("input[aria-label='Provider Credential']").setValue(credential);
+  if (options.evidenceImportSupport) {
+    await wrapper
+      .get("select[aria-label='Fake Evidence Import capability']")
+      .setValue(options.evidenceImportSupport);
+  }
   await clickButton(wrapper, "Run Provider Connection Test");
 }
 
@@ -876,8 +953,11 @@ function tomorrowDate() {
   return date.toISOString().slice(0, 10);
 }
 
-async function createAcceptedTomorrowPlan(wrapper: ReturnType<typeof mount>) {
-  await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key");
+async function createAcceptedTomorrowPlan(
+  wrapper: ReturnType<typeof mount>,
+  options: { evidenceImportSupport?: "unsupported" | "supported" } = {}
+) {
+  await connectFakeProvider(wrapper, "Fake Provider", "secret-test-key", options);
   await createGoal(wrapper, "Ship schedule suggestions");
   await addTask(wrapper, {
     title: "Draft the schedule suggestion flow",

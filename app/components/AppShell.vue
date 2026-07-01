@@ -94,6 +94,7 @@ type ProviderDraft = {
   providerName: string;
   credential: string;
   fakeMode: "success" | "failure";
+  evidenceImportSupport: "unsupported" | "supported";
 };
 
 type ActiveProvider = {
@@ -143,6 +144,12 @@ type ScheduleSuggestion = {
 type DailyPlan = {
   date: string;
   tasks: ScheduleSuggestionTask[];
+};
+
+type EvidenceCompletionSuggestion = {
+  taskTitle: string;
+  confidence: "High" | "Medium" | "Low";
+  rationale: string;
 };
 
 type SurfaceId =
@@ -260,7 +267,8 @@ const taskDrafts = ref<Record<number, TaskDraft>>({});
 const providerDraft = ref<ProviderDraft>({
   providerName: "",
   credential: "",
-  fakeMode: "success"
+  fakeMode: "success",
+  evidenceImportSupport: "unsupported"
 });
 const activeProvider = ref<ActiveProvider | null>(null);
 const providerConnectionError = ref("");
@@ -284,6 +292,10 @@ const dailyCapacity = ref<DailyCapacity | "">("");
 const dailyReviewError = ref("");
 const dailyReviewCompleted = ref(false);
 const dailyReviewScheduleStatus = ref("");
+const evidenceImportEnabled = ref(false);
+const evidenceImportSkipped = ref(false);
+const evidenceImportStatus = ref("");
+const evidenceCompletionSuggestions = ref<EvidenceCompletionSuggestion[]>([]);
 const events = ref<CalendarEvent[]>([]);
 const eventDraft = ref<EventDraft>({
   title: "",
@@ -318,6 +330,17 @@ const incompleteReasonOptions: IncompleteReason[] = [
 ];
 const todayDate = new Date().toISOString().slice(0, 10);
 const tomorrowDate = getTomorrowDate();
+const evidenceImportCapability = computed(() =>
+  activeProvider.value?.capabilities.find(
+    (capability) => capability.id === "conversation-evidence-import"
+  )
+);
+const canRunEvidenceImport = computed(
+  () =>
+    evidenceImportEnabled.value &&
+    !evidenceImportSkipped.value &&
+    evidenceImportCapability.value?.supported === true
+);
 
 function createGoal() {
   const title = goalTitle.value.trim();
@@ -563,6 +586,57 @@ function completeDailyReview() {
   dailyReviewError.value = "";
 }
 
+async function importConversationEvidence() {
+  if (!acceptedDailyPlan.value || !canRunEvidenceImport.value) {
+    return;
+  }
+
+  const adapter = createFakeAiProviderAdapter({
+    mode: "success",
+    conversationEvidenceImportSupported: true
+  });
+  await adapter.generateStructuredText({
+    instruction:
+      "Import same-day conversation evidence and return only structured completion suggestions.",
+    schemaName: "evidence-completion-suggestions"
+  });
+
+  const firstPlannedTask = acceptedDailyPlan.value.tasks.find(
+    (task) => reviewStatusFor(task) !== "Completed"
+  );
+
+  evidenceCompletionSuggestions.value = firstPlannedTask
+    ? [
+        {
+          taskTitle: firstPlannedTask.title,
+          confidence: "High",
+          rationale: "Structured evidence matched the Scheduled Task outcome."
+        }
+      ]
+    : [];
+  evidenceImportStatus.value = "Evidence Import completed.";
+}
+
+function skipEvidenceImportForDailyReview() {
+  evidenceImportSkipped.value = true;
+  evidenceCompletionSuggestions.value = [];
+  evidenceImportStatus.value = "Evidence Import skipped for this Daily Review.";
+}
+
+function acceptAllEvidenceCompletions() {
+  for (const suggestion of evidenceCompletionSuggestions.value) {
+    dailyReviewStatuses.value[suggestion.taskTitle] = "Completed";
+  }
+
+  evidenceCompletionSuggestions.value = [];
+  evidenceImportStatus.value = "Evidence completions accepted.";
+}
+
+function rejectEvidenceCompletions() {
+  evidenceCompletionSuggestions.value = [];
+  evidenceImportStatus.value = "Evidence completions rejected.";
+}
+
 async function generateScheduleSuggestionFromDailyReview() {
   await generateTomorrowScheduleSuggestion();
   dailyReviewScheduleStatus.value =
@@ -635,7 +709,11 @@ async function runProviderConnectionTest() {
     return;
   }
 
-  const adapter = createFakeAiProviderAdapter({ mode: providerDraft.value.fakeMode });
+  const adapter = createFakeAiProviderAdapter({
+    mode: providerDraft.value.fakeMode,
+    conversationEvidenceImportSupported:
+      providerDraft.value.evidenceImportSupport === "supported"
+  });
   const result: ProviderConnectionResult = await adapter.testConnection({
     providerName,
     secret: credential
@@ -1219,6 +1297,17 @@ function taskPlanningLabel(task: Task) {
             </select>
           </label>
 
+          <label>
+            Fake Evidence Import capability
+            <select
+              v-model="providerDraft.evidenceImportSupport"
+              aria-label="Fake Evidence Import capability"
+            >
+              <option value="unsupported">unsupported</option>
+              <option value="supported">supported</option>
+            </select>
+          </label>
+
           <button type="button" @click="runProviderConnectionTest">
             Run Provider Connection Test
           </button>
@@ -1507,6 +1596,75 @@ function taskPlanningLabel(task: Task) {
         >
           <h3>Daily Review Flow</h3>
           <p>Reviewing Daily Plan for {{ acceptedDailyPlan.date }}</p>
+
+          <section class="form-section" aria-label="Evidence Import">
+            <h3>Evidence Import</h3>
+            <label class="checkbox-label">
+              <input
+                v-model="evidenceImportEnabled"
+                aria-label="Enable Evidence Import"
+                type="checkbox"
+              />
+              Enable Evidence Import
+            </label>
+
+            <p
+              v-if="evidenceImportEnabled && !evidenceImportCapability?.supported"
+              class="planning-state"
+            >
+              Evidence Import disabled:
+              {{
+                evidenceImportCapability?.explanation ??
+                "Connect a provider that supports Conversation Evidence Import."
+              }}
+            </p>
+
+            <p
+              v-else-if="evidenceImportEnabled"
+              class="planning-state"
+            >
+              Evidence Import uses structured suggestions only. Raw Conversation
+              Evidence is not stored.
+            </p>
+
+            <button
+              type="button"
+              :disabled="!canRunEvidenceImport"
+              @click="importConversationEvidence"
+            >
+              Import Conversation Evidence
+            </button>
+            <button type="button" @click="skipEvidenceImportForDailyReview">
+              Skip Evidence Import for this Daily Review
+            </button>
+
+            <p v-if="evidenceImportStatus" class="planning-state">
+              {{ evidenceImportStatus }}
+            </p>
+
+            <section
+              v-if="evidenceCompletionSuggestions.length > 0"
+              class="form-section"
+              aria-label="Suggested completed Scheduled Tasks"
+            >
+              <h4>Suggested completed Scheduled Tasks</h4>
+              <ul>
+                <li
+                  v-for="suggestion in evidenceCompletionSuggestions"
+                  :key="suggestion.taskTitle"
+                >
+                  {{ suggestion.taskTitle }} · {{ suggestion.confidence }}
+                  confidence · {{ suggestion.rationale }}
+                </li>
+              </ul>
+              <button type="button" @click="acceptAllEvidenceCompletions">
+                Accept all evidence completions
+              </button>
+              <button type="button" @click="rejectEvidenceCompletions">
+                Reject evidence completions
+              </button>
+            </section>
+          </section>
 
           <ul class="task-list">
             <li

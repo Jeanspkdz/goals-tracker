@@ -47,10 +47,12 @@ export type AiProviderAdapter = {
 
 type FakeAdapterOptions = {
   mode: "success" | "failure";
+  conversationEvidenceImportSupported?: boolean;
 };
 
 export function createFakeAiProviderAdapter({
-  mode
+  mode,
+  conversationEvidenceImportSupported = false
 }: FakeAdapterOptions): AiProviderAdapter {
   return {
     async testConnection(credential) {
@@ -74,8 +76,10 @@ export function createFakeAiProviderAdapter({
           {
             id: "conversation-evidence-import",
             label: "Conversation evidence import",
-            supported: false,
-            explanation: "Fake Provider does not support conversation import."
+            supported: conversationEvidenceImportSupported,
+            explanation: conversationEvidenceImportSupported
+              ? "Fake Provider can return structured conversation evidence suggestions."
+              : "Fake Provider does not support conversation import."
           }
         ]
       };
