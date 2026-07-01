@@ -1,8 +1,12 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import AppShell from "./AppShell.vue";
 
 describe("Goals Tracker app shell", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it("renders the v1 navigation surfaces using domain language", () => {
     const wrapper = mount(AppShell);
 
@@ -885,6 +889,77 @@ describe("Goals Tracker app shell", () => {
     );
 
     expect(wrapper.text()).toContain("Pinned Lesson");
+  });
+
+  it("persists structured AI Suggestion History in a Settings debug view without raw prompts or conversations", async () => {
+    const wrapper = mount(AppShell);
+
+    await connectFakeProvider(wrapper, "First Provider", "first-secret", {
+      evidenceImportSupport: "supported"
+    });
+    await clickButton(wrapper, "Goals");
+    await wrapper
+      .get("textarea[aria-label='Goal Prompt']")
+      .setValue("raw prompt that should not be stored");
+    await clickButton(wrapper, "Generate Goal Suggestions");
+    await clickButton(
+      wrapper,
+      "Accept Goal Suggestion Ship a Nuxt goals tracker onboarding flow"
+    );
+
+    await clickButton(wrapper, "Calendar");
+    await clickButton(wrapper, "Generate Tomorrow Schedule Suggestion");
+    await clickButton(wrapper, "Accept Schedule Suggestion");
+    await clickButton(wrapper, "Daily Review");
+    await wrapper.get("input[aria-label='Enable Evidence Import']").setValue(true);
+    await clickButton(wrapper, "Import Conversation Evidence");
+    await clickButton(wrapper, "Accept all evidence completions");
+    await wrapper
+      .get("select[aria-label='Completion status for Build provider setup UI']")
+      .setValue("Incomplete");
+    await wrapper
+      .get("select[aria-label='Incomplete Reason for Build provider setup UI']")
+      .setValue("Too Large");
+    await clickButton(wrapper, "Confirm Task Split for Build provider setup UI");
+
+    expect(wrapper.text()).not.toContain("AI Suggestion History Debug");
+
+    await connectFakeProvider(wrapper, "Second Provider", "second-secret");
+    await clickButton(wrapper, "Settings");
+    await clickButton(wrapper, "Show AI Suggestion History Debug");
+
+    expect(wrapper.text()).toContain("AI Suggestion History Debug");
+    expect(wrapper.text()).toContain("First Provider");
+    expect(wrapper.text()).toContain("goal accepted");
+    expect(wrapper.text()).toContain("schedule accepted");
+    expect(wrapper.text()).toContain("evidence accepted");
+    expect(wrapper.text()).toContain("task-split accepted");
+    expect(wrapper.text()).toContain("Active provider: Second Provider");
+    expect(wrapper.text()).not.toContain("first-secret");
+    expect(wrapper.text()).not.toContain("second-secret");
+    expect(wrapper.text()).not.toContain("raw prompt that should not be stored");
+    expect(wrapper.text()).not.toContain("raw conversation");
+
+    const remounted = mount(AppShell);
+    await clickButton(remounted, "Settings");
+    await clickButton(remounted, "Show AI Suggestion History Debug");
+
+    expect(remounted.text()).toContain("First Provider");
+    expect(remounted.text()).toContain("evidence accepted");
+
+    await clickButton(wrapper, "Delete AI Suggestion History");
+
+    expect(wrapper.text()).toContain(
+      "Deleting AI Suggestion History may reduce explanation and future planning quality."
+    );
+
+    await clickButton(wrapper, "Confirm delete AI Suggestion History");
+
+    expect(wrapper.text()).toContain("AI Suggestion History deleted.");
+    expect(wrapper.text()).not.toContain("First Provider");
+
+    await clickButton(wrapper, "Goals");
+    expect(wrapper.text()).toContain("Ship a Nuxt goals tracker onboarding flow");
   });
 
   it("requires an Incomplete Reason and records an optional note", async () => {

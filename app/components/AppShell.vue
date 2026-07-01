@@ -7,7 +7,7 @@ import {
   Settings,
   Sparkles
 } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   createRemindersForDailyPlan,
   snoozeReminder,
@@ -123,9 +123,9 @@ type GoalSuggestion = {
 type AiSuggestionHistoryRecord = {
   id: number;
   providerName: string;
-  suggestionKind: "goal" | "schedule";
+  suggestionKind: "goal" | "schedule" | "task-split" | "evidence";
   outcome: "accepted" | "rejected" | "regenerated";
-  structuredSuggestion: GoalSuggestion | ScheduleSuggestion;
+  structuredSuggestion: unknown;
   reason?: string;
 };
 
@@ -291,6 +291,9 @@ const goalSuggestionError = ref("");
 const goalSuggestionStatus = ref("");
 const goalSuggestionFakeMode = ref<"success" | "failure">("success");
 const aiSuggestionHistory = ref<AiSuggestionHistoryRecord[]>([]);
+const showAiSuggestionHistoryDebug = ref(false);
+const aiSuggestionHistoryDeleteWarningVisible = ref(false);
+const aiSuggestionHistoryStatus = ref("");
 const scheduleSuggestions = ref<ScheduleSuggestion[]>([]);
 const scheduleSuggestionError = ref("");
 const scheduleSuggestionStatus = ref("");
@@ -365,6 +368,8 @@ const incompleteReasonOptions: IncompleteReason[] = [
 ];
 const todayDate = new Date().toISOString().slice(0, 10);
 const tomorrowDate = getTomorrowDate();
+const aiSuggestionHistoryStorageKey =
+  "goals-tracker.ai-suggestion-history.v1";
 const evidenceImportCapability = computed(() =>
   activeProvider.value?.capabilities.find(
     (capability) => capability.id === "conversation-evidence-import"
@@ -424,6 +429,22 @@ const lessonSuggestions = computed(() => {
       !weeklyLessons.value.some((lesson) => lesson.text === suggestion)
   );
 });
+
+onMounted(() => {
+  aiSuggestionHistory.value = loadAiSuggestionHistory();
+});
+
+watch(
+  aiSuggestionHistory,
+  (records) => {
+    if (typeof localStorage === "undefined") {
+      return;
+    }
+
+    localStorage.setItem(aiSuggestionHistoryStorageKey, JSON.stringify(records));
+  },
+  { deep: true }
+);
 
 function createGoal() {
   const title = goalTitle.value.trim();
@@ -622,6 +643,13 @@ function acceptScheduleSuggestion(suggestion: ScheduleSuggestion) {
     date: suggestion.date,
     tasks: suggestion.tasks.map((task) => ({ ...task }))
   };
+  aiSuggestionHistory.value.push({
+    id: Date.now(),
+    providerName: activeProvider.value?.providerName ?? "Unknown provider",
+    suggestionKind: "schedule",
+    outcome: "accepted",
+    structuredSuggestion: suggestion
+  });
   scheduleSuggestions.value = [];
 }
 
@@ -714,8 +742,24 @@ function skipEvidenceImportForDailyReview() {
 }
 
 function acceptAllEvidenceCompletions() {
+  const acceptedSuggestions = evidenceCompletionSuggestions.value.map(
+    (suggestion) => ({ ...suggestion })
+  );
+
   for (const suggestion of evidenceCompletionSuggestions.value) {
     dailyReviewStatuses.value[suggestion.taskTitle] = "Completed";
+  }
+
+  if (acceptedSuggestions.length > 0) {
+    aiSuggestionHistory.value.push({
+      id: Date.now(),
+      providerName: activeProvider.value?.providerName ?? "Unknown provider",
+      suggestionKind: "evidence",
+      outcome: "accepted",
+      structuredSuggestion: {
+        suggestedCompletedTasks: acceptedSuggestions
+      }
+    });
   }
 
   evidenceCompletionSuggestions.value = [];
@@ -807,6 +851,16 @@ function pinWeeklyLesson(lesson: WeeklyLesson) {
   lesson.pinned = true;
 }
 
+function requestAiSuggestionHistoryDeletion() {
+  aiSuggestionHistoryDeleteWarningVisible.value = true;
+}
+
+function deleteAiSuggestionHistory() {
+  aiSuggestionHistory.value = [];
+  aiSuggestionHistoryDeleteWarningVisible.value = false;
+  aiSuggestionHistoryStatus.value = "AI Suggestion History deleted.";
+}
+
 async function generateScheduleSuggestionFromDailyReview() {
   await generateTomorrowScheduleSuggestion();
   dailyReviewScheduleStatus.value =
@@ -838,7 +892,18 @@ function proposedSplitFor(task: ScheduleSuggestionTask) {
 }
 
 function confirmTaskSplit(task: ScheduleSuggestionTask) {
-  confirmedTaskSplits.value[task.title] = proposedSplitFor(task);
+  const splitTasks = proposedSplitFor(task);
+  confirmedTaskSplits.value[task.title] = splitTasks;
+  aiSuggestionHistory.value.push({
+    id: Date.now(),
+    providerName: activeProvider.value?.providerName ?? "Unknown provider",
+    suggestionKind: "task-split",
+    outcome: "accepted",
+    structuredSuggestion: {
+      taskTitle: task.title,
+      splitTasks
+    }
+  });
 }
 
 function createUnblockTask(task: ScheduleSuggestionTask) {
@@ -868,6 +933,41 @@ function isGoalSuggestion(value: unknown): value is GoalSuggestion {
     Array.isArray(suggestion.taskBreakdown) &&
     typeof suggestion.schedulePattern === "string" &&
     typeof suggestion.deadlineSuggestion === "string"
+  );
+}
+
+function loadAiSuggestionHistory(): AiSuggestionHistoryRecord[] {
+  if (typeof localStorage === "undefined") {
+    return [];
+  }
+
+  const rawHistory = localStorage.getItem(aiSuggestionHistoryStorageKey);
+
+  if (!rawHistory) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawHistory);
+    return Array.isArray(parsed) ? parsed.filter(isAiSuggestionHistoryRecord) : [];
+  } catch {
+    return [];
+  }
+}
+
+function isAiSuggestionHistoryRecord(
+  value: unknown
+): value is AiSuggestionHistoryRecord {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as AiSuggestionHistoryRecord;
+  return (
+    typeof record.id === "number" &&
+    typeof record.providerName === "string" &&
+    typeof record.suggestionKind === "string" &&
+    typeof record.outcome === "string"
   );
 }
 
@@ -2282,6 +2382,72 @@ function taskPlanningLabel(task: Task) {
           <p class="planning-state">
             Early reminders: {{ reminderOffsetMinutes }} minutes before start
           </p>
+        </section>
+
+        <section class="form-section" aria-label="AI Suggestion History Settings">
+          <h3>AI Suggestion History</h3>
+          <p class="planning-state">
+            Structured suggestion records are kept for provider context. Raw
+            prompts and raw Conversation Evidence are not stored.
+          </p>
+          <p v-if="activeProvider" class="planning-state">
+            Active provider: {{ activeProvider.providerName }}
+          </p>
+          <button
+            type="button"
+            @click="showAiSuggestionHistoryDebug = !showAiSuggestionHistoryDebug"
+          >
+            Show AI Suggestion History Debug
+          </button>
+
+          <section
+            v-if="showAiSuggestionHistoryDebug"
+            class="form-section"
+            aria-label="AI Suggestion History Debug"
+          >
+            <h4>AI Suggestion History Debug</h4>
+            <p
+              v-if="aiSuggestionHistory.length === 0"
+              class="planning-state"
+            >
+              No structured AI Suggestion History records.
+            </p>
+            <ul v-else class="task-list">
+              <li
+                v-for="record in aiSuggestionHistory"
+                :key="record.id"
+                class="task-item"
+              >
+                <div>
+                  <strong>
+                    {{ record.suggestionKind }} {{ record.outcome }}
+                  </strong>
+                  <p>Provider: {{ record.providerName }}</p>
+                </div>
+              </li>
+            </ul>
+
+            <button type="button" @click="requestAiSuggestionHistoryDeletion">
+              Delete AI Suggestion History
+            </button>
+            <p
+              v-if="aiSuggestionHistoryDeleteWarningVisible"
+              class="form-error"
+            >
+              Deleting AI Suggestion History may reduce explanation and future
+              planning quality.
+            </p>
+            <button
+              v-if="aiSuggestionHistoryDeleteWarningVisible"
+              type="button"
+              @click="deleteAiSuggestionHistory"
+            >
+              Confirm delete AI Suggestion History
+            </button>
+            <p v-if="aiSuggestionHistoryStatus" class="planning-state">
+              {{ aiSuggestionHistoryStatus }}
+            </p>
+          </section>
         </section>
       </div>
 
